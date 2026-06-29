@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+venv/
+.venv/
+
+# Entorno
+.env
+
+# Base de datos (no subir a git, contiene datos de empresas reales)
+prospector.db
+
+# Backups y exports (se generan localmente)
+backups/
+exports/
+
+# Logs
+*.log
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
