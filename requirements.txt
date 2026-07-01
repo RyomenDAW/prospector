@@ -1,0 +1,7 @@
+flask
+requests
+python-dotenv
+anthropic
+google-search-results
+gunicorn==21.2.0
+psycopg2-binary==2.9.9
