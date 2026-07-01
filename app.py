@@ -2,7 +2,6 @@ import csv
 import io as io_module
 from flask import Flask, render_template, request, jsonify, make_response, Response
 from database import obtener_empresas, actualizar_empresa, crear_tablas
-from sender import enviar_empresa
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -51,9 +50,9 @@ def index():
 
 @app.route("/enviar/<int:empresa_id>", methods=["POST"])
 def enviar(empresa_id):
-    exito, msg = enviar_empresa(empresa_id)
-    return jsonify({"ok": exito, "msg": msg})
+    return jsonify({"ok": False, "msg": "El envío se hace desde el CRM. Añade este lead al CRM y envía desde ahí."})
 
+    
 @app.route("/rechazar/<int:empresa_id>", methods=["POST"])
 def rechazar(empresa_id):
     actualizar_empresa(empresa_id, {"estado": "rechazada"})
