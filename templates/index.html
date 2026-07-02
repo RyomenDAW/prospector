@@ -1,484 +1,163 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
-  <head>
-    <meta charset="UTF-8" />
-    <title>Panel de Control — Prospector</title>
-    <link
-      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
-      rel="stylesheet"
-    />
-    <link
-      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css"
-      rel="stylesheet"
-    />
-    <style>
-      body {
-        background: #f8f9fa;
-      }
-      .navbar {
-        background: #1a1a2e;
-      }
-      .step-card {
-        transition: all 0.3s;
-        border-left: 4px solid #dee2e6;
-      }
-      .step-card.ejecutando {
-        border-left-color: #f39c12;
-        background: #fff9e6;
-      }
-      .step-card.completado {
-        border-left-color: #27ae60;
-        background: #f0faf0;
-      }
-      .step-card.error {
-        border-left-color: #c0392b;
-        background: #fdf0f0;
-      }
-      .stat-box {
-        text-align: center;
-        padding: 16px;
-        border-radius: 10px;
-        background: white;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-      }
-      .stat-num {
-        font-size: 2rem;
-        font-weight: 700;
-        color: #1a1a2e;
-      }
-      .stat-label {
-        font-size: 0.8rem;
-        color: #6c757d;
-        text-transform: uppercase;
-      }
-      .pipeline-progress {
-        height: 6px;
-        background: #e9ecef;
-        border-radius: 3px;
-        overflow: hidden;
-      }
-      .pipeline-fill {
-        height: 100%;
-        background: linear-gradient(90deg, #27ae60, #2ecc71);
-        transition: width 0.5s;
-      }
-    </style>
-  </head>
-  <body>
-    <nav class="navbar navbar-dark px-4 py-3 mb-4">
-      <span class="navbar-brand fw-bold">
-        <i class="bi bi-gear-wide-connected me-2"></i>Panel de Control —
-        Prospector
-      </span>
-      <div>
-        <a href="/" class="btn btn-outline-light btn-sm me-2">
-          <i class="bi bi-list-ul me-1"></i>Ver empresas
-        </a>
-      </div>
-    </nav>
+<head>
+  <meta charset="UTF-8">
+  <title>Prospector — La Guía de Sevilla</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    body { background: #f8f9fa; }
+    .navbar { background: #1a1a2e; }
+    .score-alto  { color: #c0392b; font-weight: bold; }
+    .score-medio { color: #e67e22; font-weight: bold; }
+    .score-bajo  { color: #27ae60; font-weight: bold; }
+    .mensaje-box { font-size: 0.85rem; background: #f1f3f5; border-radius: 8px; padding: 10px; }
+    .dafo-critica { color: #c0392b; }
+    .dafo-alta    { color: #e67e22; }
+    .dafo-media   { color: #f39c12; }
+    .dafo-ok      { color: #27ae60; }
+  </style>
+</head>
+<body>
 
-    <div class="container">
-      <!-- ESTADÍSTICAS -->
-      <div class="row g-3 mb-4">
-        <div class="col-6 col-md-2">
-          <div class="stat-box">
-            <div class="stat-num">{{ stats.total }}</div>
-            <div class="stat-label">Total</div>
-          </div>
+<nav class="navbar navbar-dark px-4 py-3 mb-4">
+  <span class="navbar-brand fw-bold"><i class="bi bi-search-heart me-2"></i>Prospector — La Guía de Sevilla</span>
+  <span class="text-white small">Enviadas hoy: <strong>{{ total_enviadas_hoy }}</strong> / {{ limite }}</span>
+</nav>
+
+<div class="container">
+
+  <!-- Filtros estado -->
+  <div class="d-flex flex-wrap gap-2 mb-3">
+    <a href="/?estado=lista&zona={{ zona }}"     class="btn btn-sm {{ 'btn-dark' if estado == 'lista'     else 'btn-outline-dark' }}">Pendientes</a>
+    <a href="/?estado=enviada&zona={{ zona }}"   class="btn btn-sm {{ 'btn-dark' if estado == 'enviada'   else 'btn-outline-dark' }}">Enviadas</a>
+    <a href="/?estado=rechazada&zona={{ zona }}" class="btn btn-sm {{ 'btn-dark' if estado == 'rechazada' else 'btn-outline-dark' }}">Rechazadas</a>
+    <a href="/exportar-pdf?estado={{ estado }}"  class="btn btn-sm btn-outline-danger ms-auto">
+      <i class="bi bi-file-pdf me-1"></i>PDF
+    </a>
+    <a href="/exportar-csv" class="btn btn-sm btn-outline-success">
+      <i class="bi bi-filetype-csv me-1"></i>CSV
+    </a>
+  </div>
+
+  <!-- Filtros zona -->
+  <div class="d-flex gap-2 mb-4">
+    <small class="text-muted align-self-center me-1">Zona:</small>
+    {% for z in ['todas','cerca','medio','lejos','desconocida'] %}
+    <a href="/?estado={{ estado }}&zona={{ z }}"
+       class="btn btn-sm {{ 'btn-secondary' if zona == z else 'btn-outline-secondary' }}">
+      {{ z.capitalize() }}
+    </a>
+    {% endfor %}
+  </div>
+
+  <p class="text-muted small mb-3">{{ empresas|length }} empresas</p>
+
+  {% if not empresas %}
+    <div class="alert alert-info">No hay empresas en este estado/zona.</div>
+  {% endif %}
+
+  {% for e in empresas %}
+    {% if e.nombre %}
+    <div class="card mb-3 shadow-sm" id="card-{{ e.id }}">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <h5 class="mb-1">{{ e.nombre }}</h5>
+          <small class="text-muted">{{ e.sector }} · {{ e.direccion }}</small><br>
+          <small class="text-muted"><i class="bi bi-telephone me-1"></i>{{ e.telefono or 'Sin teléfono' }}</small>
+          {% if e.zona %}
+          <span class="badge bg-secondary ms-2">{{ e.zona }}</span>
+          {% endif %}
         </div>
-        <div class="col-6 col-md-2">
-          <div class="stat-box">
-            <div class="stat-num">{{ stats.detectada }}</div>
-            <div class="stat-label">Detectadas</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-2">
-          <div class="stat-box">
-            <div class="stat-num">{{ stats.auditada }}</div>
-            <div class="stat-label">Auditadas</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-2">
-          <div class="stat-box">
-            <div class="stat-num">{{ stats.cualificada }}</div>
-            <div class="stat-label">Cualificadas</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-2">
-          <div class="stat-box">
-            <div class="stat-num">{{ stats.lista }}</div>
-            <div class="stat-label">Listas</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-2">
-          <div class="stat-box">
-            <div class="stat-num">{{ stats.enviada }}</div>
-            <div class="stat-label">Enviadas</div>
-          </div>
+        <div class="text-end">
+          <span class="{{ 'score-alto' if e.score >= 60 else 'score-medio' if e.score >= 40 else 'score-bajo' }}">
+            Score: {{ e.score }}
+          </span><br>
+          <small class="text-muted">{{ e.web or 'Sin web' }}</small>
         </div>
       </div>
 
-      <!-- PIPELINE COMPLETO -->
-      <div class="card mb-4 shadow-sm">
-        <div class="card-body">
-          <h5 class="card-title mb-3">
-            <i class="bi bi-lightning-charge-fill text-warning me-2"></i
-            >Pipeline completo
-          </h5>
-          <p class="text-muted small mb-3">
-            Ejecuta todo el pipeline de un solo clic: buscar → auditar → puntuar
-            → generar mensajes
-          </p>
-
-          <div class="row g-3 mb-3">
-            <div class="col-md-4">
-              <label class="form-label small fw-bold">Sector</label>
-              <select id="pipeline-sector" class="form-select form-select-sm">
-                <option value="restaurantes">Restaurantes</option>
-                <option value="clinicas dentales">Clínicas dentales</option>
-                <option value="inmobiliarias">Inmobiliarias</option>
-                <option value="talleres mecanicos">Talleres mecánicos</option>
-                <option value="academias">Academias</option>
-                <option value="farmacias">Farmacias</option>
-                <option value="peluquerias">Peluquerías</option>
-                <option value="fontaneros">Fontaneros</option>
-              </select>
-            </div>
-            <div class="col-md-4">
-              <label class="form-label small fw-bold">Zona</label>
-              <select id="pipeline-zona" class="form-select form-select-sm">
-                <option value="Sevilla">Sevilla</option>
-                <option value="Dos Hermanas">Dos Hermanas</option>
-                <option value="Alcala de Guadaira">Alcalá de Guadaíra</option>
-                <option value="Mairena del Aljarafe">
-                  Mairena del Aljarafe
-                </option>
-                <option value="Utrera">Utrera</option>
-                <option value="Carmona">Carmona</option>
-                <option value="Ecija">Écija</option>
-              </select>
-            </div>
-            <div class="col-md-2">
-              <label class="form-label small fw-bold">Máx. resultados</label>
-              <input
-                type="number"
-                id="pipeline-max"
-                class="form-control form-control-sm"
-                value="20"
-                min="5"
-                max="100"
-              />
-            </div>
-            <div class="col-md-2 d-flex align-items-end">
-              <button
-                onclick="ejecutarPipeline()"
-                class="btn btn-warning btn-sm w-100 fw-bold"
-                id="btn-pipeline"
-              >
-                <i class="bi bi-play-fill me-1"></i>Ejecutar
-              </button>
-            </div>
-          </div>
-
-          <!-- Barra de progreso del pipeline -->
-          <div id="pipeline-status" class="d-none">
-            <div class="pipeline-progress mb-2">
-              <div
-                class="pipeline-fill"
-                id="pipeline-bar"
-                style="width: 0%"
-              ></div>
-            </div>
-            <small class="text-muted" id="pipeline-msg">Iniciando...</small>
-          </div>
-        </div>
+      <!-- DAFO -->
+      {% if e.dafo %}
+      <div class="mt-2 mb-1">
+        <small class="fw-bold text-muted">Debilidades detectadas:</small><br>
+        {% set dafo_items = e.dafo | tojson | safe %}
+        {% for item in e.dafo | fromjson %}
+        <small class="dafo-{{ item.gravedad }}">
+          <i class="bi bi-{{ 'x-circle-fill' if item.gravedad in ['critica','alta'] else 'exclamation-circle' if item.gravedad == 'media' else 'check-circle' }} me-1"></i>
+          {{ item.item }}
+        </small><br>
+        {% endfor %}
       </div>
+      {% endif %}
 
-      <!-- PASOS INDIVIDUALES -->
-      <h5 class="mb-3"><i class="bi bi-tools me-2"></i>Pasos individuales</h5>
+      <div class="mensaje-box mt-2" id="msg-{{ e.id }}">{{ e.mensaje_generado or 'Sin mensaje generado' }}</div>
 
-      <div class="row g-3 mb-4">
-        <!-- Buscar -->
-        <div class="col-md-6">
-          <div class="card step-card" id="step-buscar">
-            <div class="card-body">
-              <h6>
-                <i class="bi bi-search me-2 text-primary"></i>1. Buscar empresas
-              </h6>
-              <p class="small text-muted mb-2">
-                Busca negocios en Google Maps por sector y zona con SerpAPI
-              </p>
-              <div class="d-flex gap-2 mb-2">
-                <select id="buscar-sector" class="form-select form-select-sm">
-                  <option value="restaurantes">Restaurantes</option>
-                  <option value="clinicas dentales">Clínicas</option>
-                  <option value="inmobiliarias">Inmobiliarias</option>
-                  <option value="talleres mecanicos">Talleres</option>
-                  <option value="academias">Academias</option>
-                  <option value="farmacias">Farmacias</option>
-                  <option value="peluquerias">Peluquerías</option>
-                  <option value="fontaneros">Fontaneros</option>
-                </select>
-                <select id="buscar-zona" class="form-select form-select-sm">
-                  <option value="Sevilla">Sevilla</option>
-                  <option value="Dos Hermanas">Dos Hermanas</option>
-                  <option value="Alcala de Guadaira">Alcalá</option>
-                  <option value="Mairena del Aljarafe">Mairena</option>
-                </select>
-              </div>
-              <button
-                onclick="
-                  ejecutarAccion('buscar', {
-                    sector: qs('#buscar-sector').value,
-                    zona: qs('#buscar-zona').value,
-                  })
-                "
-                class="btn btn-primary btn-sm"
-              >
-                <i class="bi bi-search me-1"></i>Buscar
-              </button>
-              <button
-                onclick="ejecutarAccion('buscar-todo', {})"
-                class="btn btn-outline-primary btn-sm ms-2"
-              >
-                Buscar todos
-              </button>
-              <div class="step-status mt-2 small" id="status-buscar"></div>
-            </div>
-          </div>
-        </div>
+{% if estado == 'lista' %}
+<div class="d-flex gap-2 mt-3 flex-wrap">
+  <button onclick="enviar({{ e.id }})" class="btn btn-success btn-sm">
+    <i class="bi bi-whatsapp me-1"></i>Aprobar y enviar
+  </button>
+  <button onclick="editarMensaje({{ e.id }})" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-pencil me-1"></i>Editar
+  </button>
+  <button onclick="rechazar({{ e.id }})" class="btn btn-outline-danger btn-sm">
+    <i class="bi bi-x-lg me-1"></i>Rechazar
+  </button>
+</div>
 
-        <!-- Auditar -->
-        <div class="col-md-6">
-          <div class="card step-card" id="step-auditar">
-            <div class="card-body">
-              <h6>
-                <i class="bi bi-clipboard-check me-2 text-success"></i>2.
-                Auditar webs
-              </h6>
-              <p class="small text-muted mb-2">
-                Analiza SSL, velocidad móvil, detecta portales externos
-              </p>
-              <button
-                onclick="ejecutarAccion('auditar')"
-                class="btn btn-success btn-sm"
-              >
-                <i class="bi bi-clipboard-check me-1"></i>Auditar todas
-              </button>
-              <div class="step-status mt-2 small" id="status-auditar"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Puntuar -->
-        <div class="col-md-6">
-          <div class="card step-card" id="step-puntuar">
-            <div class="card-body">
-              <h6>
-                <i class="bi bi-star-fill me-2 text-warning"></i>3. Puntuar
-              </h6>
-              <p class="small text-muted mb-2">
-                Calcula el score 0-100 y detecta debilidades
-              </p>
-              <button
-                onclick="ejecutarAccion('puntuar')"
-                class="btn btn-warning btn-sm"
-              >
-                <i class="bi bi-star-fill me-1"></i>Puntuar todas
-              </button>
-              <div class="step-status mt-2 small" id="status-puntuar"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Generar mensajes -->
-        <div class="col-md-6">
-          <div class="card step-card" id="step-generar">
-            <div class="card-body">
-              <h6>
-                <i class="bi bi-chat-dots-fill me-2 text-info"></i>4. Generar
-                mensajes
-              </h6>
-              <p class="small text-muted mb-2">
-                Claude genera mensajes personalizados por sector (cuesta ~0,20€)
-              </p>
-              <button
-                onclick="ejecutarAccion('generar')"
-                class="btn btn-info btn-sm text-white"
-              >
-                <i class="bi bi-chat-dots-fill me-1"></i>Generar mensajes
-              </button>
-              <div class="step-status mt-2 small" id="status-generar"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Validar teléfonos -->
-        <div class="col-md-6">
-          <div class="card step-card" id="step-validar">
-            <div class="card-body">
-              <h6>
-                <i class="bi bi-phone-fill me-2 text-secondary"></i>5. Validar
-                teléfonos
-              </h6>
-              <p class="small text-muted mb-2">
-                Normaliza números y verifica cuáles tienen WhatsApp
-              </p>
-              <button
-                onclick="ejecutarAccion('validar')"
-                class="btn btn-secondary btn-sm"
-              >
-                <i class="bi bi-phone-fill me-1"></i>Validar
-              </button>
-              <div class="step-status mt-2 small" id="status-validar"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Duplicados -->
-        <div class="col-md-6">
-          <div class="card step-card" id="step-duplicados">
-            <div class="card-body">
-              <h6>
-                <i class="bi bi-copy me-2 text-danger"></i>6. Limpiar duplicados
-              </h6>
-              <p class="small text-muted mb-2">
-                Detecta empresas duplicadas por nombre o teléfono
-              </p>
-              <button
-                onclick="ejecutarAccion('duplicados')"
-                class="btn btn-danger btn-sm"
-              >
-                <i class="bi bi-copy me-1"></i>Limpiar
-              </button>
-              <div class="step-status mt-2 small" id="status-duplicados"></div>
-            </div>
-          </div>
-        </div>
-      </div>
+<!-- Enlaces externos si existen -->
+<div class="d-flex gap-2 mt-2 flex-wrap">
+  {% if e.web %}
+  <a href="{{ e.web }}" target="_blank" class="btn btn-outline-primary btn-sm">
+    <i class="bi bi-globe me-1"></i>Web
+  </a>
+  {% endif %}
+  {% if e.email %}
+  <a href="mailto:{{ e.email }}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-envelope me-1"></i>{{ e.email }}
+  </a>
+  {% endif %}
+  {% if e.gmb_url %}
+  <a href="{{ e.gmb_url }}" target="_blank" class="btn btn-outline-warning btn-sm">
+    <i class="bi bi-geo-alt me-1"></i>Google Maps
+  </a>
+  {% endif %}
+</div>
+{% endif %}
+</div>
     </div>
+    {% endif %}
+  {% endfor %}
 
-    <script>
-      const qs = (sel) => document.querySelector(sel);
-
-      // Polling de estado cada 2 segundos
-      let pollingInterval = null;
-
-      function iniciarPolling() {
-        if (pollingInterval) return;
-        pollingInterval = setInterval(async () => {
-          try {
-            const res = await fetch("/accion/estado");
-            const data = await res.json();
-            actualizarUI(data);
-
-            // Si no hay nada ejecutando, parar el polling
-            const hayActivo = Object.values(data).some(
-              (t) => t.estado === "ejecutando",
-            );
-            if (!hayActivo && pollingInterval) {
-              clearInterval(pollingInterval);
-              pollingInterval = null;
-            }
-          } catch (e) {}
-        }, 2000);
-      }
-
-      function actualizarUI(tareas) {
-        // Actualizar cada step individual
-        for (const [nombre, tarea] of Object.entries(tareas)) {
-          const step = qs(`#step-${nombre}`);
-          const status = qs(`#status-${nombre}`);
-
-          if (step) {
-            step.className = `card step-card ${tarea.estado}`;
-          }
-          if (status) {
-            const icono =
-              tarea.estado === "ejecutando"
-                ? "⏳"
-                : tarea.estado === "completado"
-                  ? "✅"
-                  : "❌";
-            status.innerHTML = `${icono} ${tarea.mensaje}`;
-          }
-        }
-
-        // Pipeline
-        if (tareas.pipeline) {
-          const pipelineStatus = qs("#pipeline-status");
-          const pipelineMsg = qs("#pipeline-msg");
-          const pipelineBar = qs("#pipeline-bar");
-          const btnPipeline = qs("#btn-pipeline");
-
-          pipelineStatus.classList.remove("d-none");
-          pipelineMsg.textContent = tareas.pipeline.mensaje;
-
-          if (tareas.pipeline.estado === "ejecutando") {
-            btnPipeline.disabled = true;
-            btnPipeline.innerHTML =
-              '<span class="spinner-border spinner-border-sm me-1"></span>Ejecutando...';
-
-            // Calcular progreso por el paso actual
-            const paso = tareas.pipeline.mensaje.match(/(\d)\/4/);
-            if (paso) {
-              pipelineBar.style.width = (parseInt(paso[1]) / 4) * 100 + "%";
-            }
-          } else {
-            btnPipeline.disabled = false;
-            btnPipeline.innerHTML =
-              '<i class="bi bi-play-fill me-1"></i>Ejecutar';
-            pipelineBar.style.width =
-              tareas.pipeline.estado === "completado" ? "100%" : "0%";
-          }
-        }
-      }
-
-      async function ejecutarAccion(nombre, datos = {}) {
-        try {
-          const res = await fetch(`/accion/${nombre}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(datos),
-          });
-          const data = await res.json();
-
-          const status = qs(`#status-${nombre}`);
-          if (status) status.innerHTML = `⏳ ${data.msg}`;
-
-          iniciarPolling();
-        } catch (e) {
-          alert("Error: " + e.message);
-        }
-      }
-
-      async function ejecutarPipeline() {
-        const sector = qs("#pipeline-sector").value;
-        const zona = qs("#pipeline-zona").value;
-        const max_resultados = parseInt(qs("#pipeline-max").value) || 20;
-
-        const btn = qs("#btn-pipeline");
-        btn.disabled = true;
-        btn.innerHTML =
-          '<span class="spinner-border spinner-border-sm me-1"></span>Iniciando...';
-
-        qs("#pipeline-status").classList.remove("d-none");
-        qs("#pipeline-msg").textContent = "Iniciando pipeline...";
-        qs("#pipeline-bar").style.width = "5%";
-
-        try {
-          await fetch("/accion/pipeline", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ sector, zona, max_resultados }),
-          });
-          iniciarPolling();
-        } catch (e) {
-          btn.disabled = false;
-          btn.innerHTML = '<i class="bi bi-play-fill me-1"></i>Ejecutar';
-          alert("Error: " + e.message);
-        }
-      }
-    </script>
-  </body>
+<script>
+async function enviar(id) {
+  if (!confirm("¿Enviar este mensaje por WhatsApp?")) return;
+  const res = await fetch(`/enviar/${id}`, { method: "POST" });
+  const data = await res.json();
+  if (data.ok) {
+    document.getElementById(`card-${id}`).remove();
+    alert("Enviado correctamente");
+  } else {
+    alert("Error: " + data.msg);
+  }
+}
+async function rechazar(id) {
+  await fetch(`/rechazar/${id}`, { method: "POST" });
+  document.getElementById(`card-${id}`).remove();
+}
+async function editarMensaje(id) {
+  const actual = document.getElementById(`msg-${id}`).innerText;
+  const nuevo = prompt("Edita el mensaje:", actual);
+  if (!nuevo) return;
+  await fetch(`/editar_mensaje/${id}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mensaje: nuevo }),
+  });
+  document.getElementById(`msg-${id}`).innerText = nuevo;
+}
+</script>
+</body>
 </html>
