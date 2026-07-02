@@ -68,12 +68,20 @@ def index():
             __import__("datetime").date.today().isoformat()
         )
     ])
+
+    # Estadísticas para el template
+    stats = {}
+    for est in ["detectada", "auditada", "cualificada", "lista", "enviada", "rechazada"]:
+        stats[est] = len(obtener_empresas(estado=est))
+    stats["total"] = sum(stats.values())
+
     return render_template("index.html",
         empresas=empresas,
         estado=estado,
         zona=zona,
         total_enviadas_hoy=total_enviadas_hoy,
         limite=50,
+        stats=stats,
     )
 
 
