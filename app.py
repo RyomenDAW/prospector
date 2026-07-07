@@ -91,7 +91,30 @@ def index():
 
 @app.route("/enviar/<int:empresa_id>", methods=["POST"])
 def enviar(empresa_id):
-    return jsonify({"ok": False, "msg": "El envío se hace desde el CRM. Añade este lead al CRM y envía desde ahí."})
+    empresa = obtener_empresa_por_id(empresa_id)
+    if not empresa:
+        return jsonify({"ok": False, "msg": "Empresa no encontrada"}), 404
+ 
+    if empresa.get("estado") == "enviada":
+        return jsonify({"ok": False, "msg": "Ya fue enviada anteriormente"}), 400
+ 
+    if not empresa.get("telefono"):
+        return jsonify({"ok": False, "msg": "Sin teléfono registrado"}), 400
+ 
+    # Ya NO validamos mensaje_generado — lo que se envía es la plantilla primer_contacto.
+    # El mensaje_generado sigue existiendo como preview para Miguel Ángel en la UI,
+    # pero Meta recibe la plantilla con {{1}}=nombre y {{2}}=sector.
+ 
+    resultado = enviar_whatsapp(
+        empresa_id=empresa_id,
+        telefono=empresa["telefono"],
+        empresa=empresa,          # ← dict completo para extraer nombre y sector
+    )
+ 
+    if resultado["ok"]:
+        return jsonify({"ok": True, "message_id": resultado.get("message_id", "")})
+    else:
+        return jsonify({"ok": False, "msg": resultado.get("error", "Error desconocido")}), 500
 
 @app.route("/rechazar/<int:empresa_id>", methods=["POST"])
 def rechazar(empresa_id):

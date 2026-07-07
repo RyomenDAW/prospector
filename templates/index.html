@@ -1,171 +1,295 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <title>Prospector — La Guía de Sevilla</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
-  <link href="./styles.css" rel="stylesheet">
-  <style>
-    body { background: #f8f9fa; }
-    .navbar { background: #1a1a2e; }
-    .score-alto  { color: #c0392b; font-weight: bold; }
-    .score-medio { color: #e67e22; font-weight: bold; }
-    .score-bajo  { color: #27ae60; font-weight: bold; }
-    .mensaje-box { font-size: 0.85rem; background: #f1f3f5; border-radius: 8px; padding: 10px; }
-    .dafo-critica { color: #c0392b; }
-    .dafo-alta    { color: #e67e22; }
-    .dafo-media   { color: #f39c12; }
-    .dafo-ok      { color: #27ae60; }
-  </style>
-</head>
-<body>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Prospector — La Guía de Sevilla</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css"
+      rel="stylesheet"
+    />
+    <link href="./styles.css" rel="stylesheet" />
+    <style>
+      body {
+        background: #f8f9fa;
+      }
+      .navbar {
+        background: #1a1a2e;
+      }
+      .score-alto {
+        color: #c0392b;
+        font-weight: bold;
+      }
+      .score-medio {
+        color: #e67e22;
+        font-weight: bold;
+      }
+      .score-bajo {
+        color: #27ae60;
+        font-weight: bold;
+      }
+      .mensaje-box {
+        font-size: 0.85rem;
+        background: #f1f3f5;
+        border-radius: 8px;
+        padding: 10px;
+      }
+      .dafo-critica {
+        color: #c0392b;
+      }
+      .dafo-alta {
+        color: #e67e22;
+      }
+      .dafo-media {
+        color: #f39c12;
+      }
+      .dafo-ok {
+        color: #27ae60;
+      }
+      /* Tarjeta marcada como enviada */
+      .card-enviada {
+        opacity: 0.6;
+        border-left: 4px solid #27ae60;
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="navbar navbar-dark px-4 py-3 mb-4">
+      <span class="navbar-brand fw-bold">
+        <i class="bi bi-search-heart me-2"></i>Prospector — La Guía de Sevilla
+      </span>
+      <!-- CAMBIO: el contador ahora tiene id para actualizarlo desde JS -->
+      <span class="text-white small">
+        Enviadas hoy:
+        <strong id="contador-enviadas">{{ total_enviadas_hoy }}</strong> / {{
+        limite }}
+      </span>
+    </nav>
 
-<nav class="navbar navbar-dark px-4 py-3 mb-4">
-  <span class="navbar-brand fw-bold"><i class="bi bi-search-heart me-2"></i>Prospector — La Guía de Sevilla</span>
-  <span class="text-white small">Enviadas hoy: <strong>{{ total_enviadas_hoy }}</strong> / {{ limite }}</span>
-</nav>
-
-<div class="panel-link">
-    <a href="/panel" class="btn-panel">
+    <div class="panel-link">
+      <a href="/panel" class="btn-panel">
         <i class="bi bi-gear-fill"></i> Ir al Panel de Configuración
-    </a>
-</div>
+      </a>
+    </div>
 
-<div class="container">
-
-  <!-- Filtros estado -->
-  <div class="d-flex flex-wrap gap-2 mb-3">
-    <a href="/?estado=lista&zona={{ zona }}"     class="btn btn-sm {{ 'btn-dark' if estado == 'lista'     else 'btn-outline-dark' }}">Pendientes</a>
-    <a href="/?estado=enviada&zona={{ zona }}"   class="btn btn-sm {{ 'btn-dark' if estado == 'enviada'   else 'btn-outline-dark' }}">Enviadas</a>
-    <a href="/?estado=rechazada&zona={{ zona }}" class="btn btn-sm {{ 'btn-dark' if estado == 'rechazada' else 'btn-outline-dark' }}">Rechazadas</a>
-    <a href="/exportar-pdf?estado={{ estado }}"  class="btn btn-sm btn-outline-danger ms-auto">
-      <i class="bi bi-file-pdf me-1"></i>PDF
-    </a>
-    <a href="/exportar-csv" class="btn btn-sm btn-outline-success">
-      <i class="bi bi-filetype-csv me-1"></i>CSV
-    </a>
-  </div>
-
-  <!-- Filtros zona -->
-  <div class="d-flex gap-2 mb-4">
-    <small class="text-muted align-self-center me-1">Zona:</small>
-    {% for z in ['todas','cerca','medio','lejos','desconocida'] %}
-    <a href="/?estado={{ estado }}&zona={{ z }}"
-       class="btn btn-sm {{ 'btn-secondary' if zona == z else 'btn-outline-secondary' }}">
-      {{ z.capitalize() }}
-    </a>
-    {% endfor %}
-  </div>
-
-  <p class="text-muted small mb-3">{{ empresas|length }} empresas</p>
-
-  {% if not empresas %}
-    <div class="alert alert-info">No hay empresas en este estado/zona.</div>
-  {% endif %}
-
-  {% for e in empresas %}
-    {% if e.nombre %}
-    <div class="card mb-3 shadow-sm" id="card-{{ e.id }}">
-    <div class="card-body">
-      <div class="d-flex justify-content-between align-items-start">
-        <div>
-          <h5 class="mb-1">{{ e.nombre }}</h5>
-          <small class="text-muted">{{ e.sector }} · {{ e.direccion }}</small><br>
-          <small class="text-muted"><i class="bi bi-telephone me-1"></i>{{ e.telefono or 'Sin teléfono' }}</small>
-          {% if e.zona %}
-          <span class="badge bg-secondary ms-2">{{ e.zona }}</span>
-          {% endif %}
-        </div>
-        <div class="text-end">
-          <span class="{{ 'score-alto' if e.score >= 60 else 'score-medio' if e.score >= 40 else 'score-bajo' }}">
-            Score: {{ e.score }}
-          </span><br>
-          <small class="text-muted">{{ e.web or 'Sin web' }}</small>
-        </div>
+    <div class="container">
+      <!-- Filtros estado -->
+      <div class="d-flex flex-wrap gap-2 mb-3">
+        <a
+          href="/?estado=lista&zona={{ zona }}"
+          class="btn btn-sm {{ 'btn-dark' if estado == 'lista'     else 'btn-outline-dark' }}"
+          >Pendientes</a
+        >
+        <a
+          href="/?estado=enviada&zona={{ zona }}"
+          class="btn btn-sm {{ 'btn-dark' if estado == 'enviada'   else 'btn-outline-dark' }}"
+          >Enviadas</a
+        >
+        <a
+          href="/?estado=rechazada&zona={{ zona }}"
+          class="btn btn-sm {{ 'btn-dark' if estado == 'rechazada' else 'btn-outline-dark' }}"
+          >Rechazadas</a
+        >
+        <a
+          href="/exportar-pdf?estado={{ estado }}"
+          class="btn btn-sm btn-outline-danger ms-auto"
+        >
+          <i class="bi bi-file-pdf me-1"></i>PDF
+        </a>
+        <a href="/exportar-csv" class="btn btn-sm btn-outline-success">
+          <i class="bi bi-filetype-csv me-1"></i>CSV
+        </a>
       </div>
 
-      <!-- DAFO -->
-      {% if e.dafo %}
-      <div class="mt-2 mb-1">
-        <small class="fw-bold text-muted">Debilidades detectadas:</small><br>
-        {% set dafo_items = e.dafo | tojson | safe %}
-        {% for item in e.dafo | fromjson %}
-        <small class="dafo-{{ item.gravedad }}">
-          <i class="bi bi-{{ 'x-circle-fill' if item.gravedad in ['critica','alta'] else 'exclamation-circle' if item.gravedad == 'media' else 'check-circle' }} me-1"></i>
-          {{ item.item }}
-        </small><br>
+      <!-- Filtros zona -->
+      <div class="d-flex gap-2 mb-4">
+        <small class="text-muted align-self-center me-1">Zona:</small>
+        {% for z in ['todas','cerca','medio','lejos','desconocida'] %}
+        <a
+          href="/?estado={{ estado }}&zona={{ z }}"
+          class="btn btn-sm {{ 'btn-secondary' if zona == z else 'btn-outline-secondary' }}"
+        >
+          {{ z.capitalize() }}
+        </a>
         {% endfor %}
       </div>
-      {% endif %}
 
-      <div class="mensaje-box mt-2" id="msg-{{ e.id }}">{{ e.mensaje_generado or 'Sin mensaje generado' }}</div>
+      <p class="text-muted small mb-3">{{ empresas|length }} empresas</p>
 
-{% if estado == 'lista' %}
-<div class="d-flex gap-2 mt-3 flex-wrap">
-  <button onclick="enviar({{ e.id }})" class="btn btn-success btn-sm">
-    <i class="bi bi-whatsapp me-1"></i>Aprobar y enviar
-  </button>
-  <button onclick="editarMensaje({{ e.id }})" class="btn btn-outline-secondary btn-sm">
-    <i class="bi bi-pencil me-1"></i>Editar
-  </button>
-  <button onclick="rechazar({{ e.id }})" class="btn btn-outline-danger btn-sm">
-    <i class="bi bi-x-lg me-1"></i>Rechazar
-  </button>
-</div>
+      {% if not empresas %}
+      <div class="alert alert-info">No hay empresas en este estado/zona.</div>
+      {% endif %} {% for e in empresas %} {% if e.nombre %}
+      <div
+        class="card mb-3 shadow-sm {{ 'card-enviada' if e.estado == 'enviada' }}"
+        id="card-{{ e.id }}"
+      >
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <h5 class="mb-1">
+                {{ e.nombre }}
+                <!-- NUEVO: tick verde si ya fue enviada -->
+                {% if e.estado == 'enviada' %}
+                <span class="badge bg-success ms-2">
+                  <i class="bi bi-check-circle-fill me-1"></i>Enviado
+                </span>
+                {% endif %}
+              </h5>
+              <small class="text-muted"
+                >{{ e.sector }} · {{ e.direccion }}</small
+              ><br />
+              <small class="text-muted"
+                ><i class="bi bi-telephone me-1"></i>{{ e.telefono or 'Sin
+                teléfono' }}</small
+              >
+              {% if e.zona %}
+              <span class="badge bg-secondary ms-2">{{ e.zona }}</span>
+              {% endif %} {% if e.estado == 'enviada' and e.fecha_envio %}
+              <br /><small class="text-success"
+                ><i class="bi bi-clock me-1"></i>Enviado el {{
+                e.fecha_envio[:10] }}</small
+              >
+              {% endif %}
+            </div>
+            <div class="text-end">
+              <span
+                class="{{ 'score-alto' if e.score >= 60 else 'score-medio' if e.score >= 40 else 'score-bajo' }}"
+              >
+                Score: {{ e.score }} </span
+              ><br />
+              <small class="text-muted">{{ e.web or 'Sin web' }}</small>
+            </div>
+          </div>
 
-<!-- Enlaces externos si existen -->
-<div class="d-flex gap-2 mt-2 flex-wrap">
-  {% if e.web %}
-  <a href="{{ e.web }}" target="_blank" class="btn btn-outline-primary btn-sm">
-    <i class="bi bi-globe me-1"></i>Web
-  </a>
-  {% endif %}
-  {% if e.email %}
-  <a href="mailto:{{ e.email }}" class="btn btn-outline-secondary btn-sm">
-    <i class="bi bi-envelope me-1"></i>{{ e.email }}
-  </a>
-  {% endif %}
-  {% if e.gmb_url %}
-  <a href="{{ e.gmb_url }}" target="_blank" class="btn btn-outline-warning btn-sm">
-    <i class="bi bi-geo-alt me-1"></i>Google Maps
-  </a>
-  {% endif %}
-</div>
-{% endif %}
-</div>
+          <!-- DAFO -->
+          {% if e.dafo %}
+          <div class="mt-2 mb-1">
+            <small class="fw-bold text-muted">Debilidades detectadas:</small
+            ><br />
+            {% for item in e.dafo | fromjson %}
+            <small class="dafo-{{ item.gravedad }}">
+              <i
+                class="bi bi-{{ 'x-circle-fill' if item.gravedad in ['critica','alta'] else 'exclamation-circle' if item.gravedad == 'media' else 'check-circle' }} me-1"
+              ></i>
+              {{ item.item }} </small
+            ><br />
+            {% endfor %}
+          </div>
+          {% endif %}
+
+          <div class="mensaje-box mt-2" id="msg-{{ e.id }}">
+            {{ e.mensaje_generado or 'Sin mensaje generado' }}
+          </div>
+
+          {% if estado == 'lista' %}
+          <div class="d-flex gap-2 mt-3 flex-wrap" id="botones-{{ e.id }}">
+            <button
+              onclick="enviar({{ e.id }}, this)"
+              class="btn btn-success btn-sm"
+            >
+              <i class="bi bi-whatsapp me-1"></i>Aprobar y enviar
+            </button>
+            <button
+              onclick="editarMensaje({{ e.id }})"
+              class="btn btn-outline-secondary btn-sm"
+            >
+              <i class="bi bi-pencil me-1"></i>Editar
+            </button>
+            <button
+              onclick="rechazar({{ e.id }})"
+              class="btn btn-outline-danger btn-sm"
+            >
+              <i class="bi bi-x-lg me-1"></i>Rechazar
+            </button>
+          </div>
+
+          <!-- Enlaces externos -->
+          <div class="d-flex gap-2 mt-2 flex-wrap">
+            {% if e.web %}
+            <a
+              href="{{ e.web }}"
+              target="_blank"
+              class="btn btn-outline-primary btn-sm"
+            >
+              <i class="bi bi-globe me-1"></i>Web
+            </a>
+            {% endif %} {% if e.email %}
+            <a
+              href="mailto:{{ e.email }}"
+              class="btn btn-outline-secondary btn-sm"
+            >
+              <i class="bi bi-envelope me-1"></i>{{ e.email }}
+            </a>
+            {% endif %} {% if e.gmb_url %}
+            <a
+              href="{{ e.gmb_url }}"
+              target="_blank"
+              class="btn btn-outline-warning btn-sm"
+            >
+              <i class="bi bi-geo-alt me-1"></i>Google Maps
+            </a>
+            {% endif %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %} {% endfor %}
     </div>
-    {% endif %}
-  {% endfor %}
+    <!-- /container -->
 
-<script>
-async function enviar(id) {
-  if (!confirm("¿Enviar este mensaje por WhatsApp?")) return;
-  const res = await fetch(`/enviar/${id}`, { method: "POST" });
-  const data = await res.json();
-  if (data.ok) {
-    document.getElementById(`card-${id}`).remove();
-    alert("Enviado correctamente");
-  } else {
-    alert("Error: " + data.msg);
-  }
-}
-async function rechazar(id) {
-  await fetch(`/rechazar/${id}`, { method: "POST" });
-  document.getElementById(`card-${id}`).remove();
-}
-async function editarMensaje(id) {
-  const actual = document.getElementById(`msg-${id}`).innerText;
-  const nuevo = prompt("Edita el mensaje:", actual);
-  if (!nuevo) return;
-  await fetch(`/editar_mensaje/${id}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ mensaje: nuevo }),
-  });
-  document.getElementById(`msg-${id}`).innerText = nuevo;
-}
-</script>
-</body>
+    <script>
+      async function enviar(id, btn) {
+        if (!confirm("¿Enviar plantilla de WhatsApp a esta empresa?")) return;
+
+        // Spinner en el botón mientras espera
+        btn.disabled = true;
+        btn.innerHTML =
+          '<span class="spinner-border spinner-border-sm me-1"></span>Enviando...';
+
+        const res = await fetch(`/enviar/${id}`, { method: "POST" });
+        const data = await res.json();
+
+        if (data.ok) {
+          // 1. Cambiar los botones por el badge de confirmación
+          document.getElementById(`botones-${id}`).innerHTML = `
+      <span class="text-success fw-bold">
+        <i class="bi bi-check-circle-fill me-1"></i>¡Enviado correctamente!
+      </span>
+    `;
+
+          // 2. Añadir borde verde a la tarjeta
+          document.getElementById(`card-${id}`).classList.add("card-enviada");
+
+          // 3. Incrementar el contador del navbar
+          const contador = document.getElementById("contador-enviadas");
+          contador.textContent = parseInt(contador.textContent) + 1;
+        } else {
+          // Restaurar el botón y mostrar el error
+          btn.disabled = false;
+          btn.innerHTML = '<i class="bi bi-whatsapp me-1"></i>Aprobar y enviar';
+          alert("Error al enviar: " + data.msg);
+        }
+      }
+
+      async function rechazar(id) {
+        await fetch(`/rechazar/${id}`, { method: "POST" });
+        document.getElementById(`card-${id}`).remove();
+      }
+
+      async function editarMensaje(id) {
+        const actual = document.getElementById(`msg-${id}`).innerText;
+        const nuevo = prompt("Edita el mensaje (preview):", actual);
+        if (!nuevo) return;
+        await fetch(`/editar_mensaje/${id}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mensaje: nuevo }),
+        });
+        document.getElementById(`msg-${id}`).innerText = nuevo;
+      }
+    </script>
+  </body>
 </html>
-
