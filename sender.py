@@ -24,7 +24,7 @@ import random
 from datetime import datetime
 
 import requests
-
+from crm_client import crear_conversacion_crm
 import config
 from logger import get_logger
 from database import actualizar_empresa, obtener_empresas_enviadas_hoy
@@ -161,6 +161,14 @@ def enviar_whatsapp(empresa_id: int, telefono: str, empresa: dict) -> dict:
             "ENVIADO empresa_id=%s | numero=%s | nombre=%s | sector=%s | wamid=%s",
             empresa_id, numero, nombre, sector, message_id,
         )
+
+                # Crear conversación en el CRM para que aparezca en el chat
+        crear_conversacion_crm(
+            telefono=numero,
+            nombre=empresa.get("nombre", ""),
+        )
+ 
+
         return {"ok": True, "message_id": message_id}
 
     except requests.exceptions.HTTPError as e:

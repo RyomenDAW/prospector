@@ -40,12 +40,11 @@ CLAUDE_MAX_TOKENS = 300
 # ─────────────────────────────────────────────
 # CRM (integración para crear leads)
 # ─────────────────────────────────────────────
-CRM_API_URL = os.getenv(
-    "CRM_API_URL",
-    "https://crm-automatizacion-production-089b.up.railway.app"
-)
-CRM_API_TOKEN = os.getenv("CRM_API_TOKEN", "")
 
+CRM_API_TOKEN = os.getenv("CRM_API_TOKEN", "")
+CRM_API_URL          = os.getenv("CRM_API_URL", "https://crm-automatizacion-production-089b.up.railway.app")
+CRM_SERVICE_USER     = os.getenv("CRM_SERVICE_USER", "prospector")
+CRM_SERVICE_PASSWORD = os.getenv("CRM_SERVICE_PASSWORD", "")
 
 # ─────────────────────────────────────────────
 # LÍMITES Y VELOCIDAD DE ENVÍO
