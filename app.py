@@ -2,7 +2,8 @@ import csv
 import io as io_module
 import threading
 from flask import Flask, render_template, request, jsonify, make_response, Response
-from database import obtener_empresas, actualizar_empresa, crear_tablas
+from database import obtener_empresas, actualizar_empresa, crear_tablas, obtener_empresa_por_id
+from sender import enviar_whatsapp
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
