@@ -164,8 +164,8 @@ def enviar_whatsapp(empresa_id: int, telefono: str, empresa: dict) -> dict:
 
                 # Crear conversación en el CRM para que aparezca en el chat
         crear_conversacion_crm(
-            telefono=numero,
-            nombre=empresa.get("nombre", ""),
+                telefono=numero,
+                nombre=f"[PROSPECTOR] {empresa.get('nombre', '')}",
         )
  
 
