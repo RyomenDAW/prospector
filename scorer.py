@@ -99,7 +99,10 @@ def calcular_score(empresa):
 
 
 def puntuar_todas():
-    empresas = obtener_empresas(estado="auditada")
+        empresas = (
+        obtener_empresas(estado="auditada") +
+        obtener_empresas(estado="cualificada")
+    )
     print(f"\nEmpresas a puntuar: {len(empresas)}")
 
     for empresa in empresas:
