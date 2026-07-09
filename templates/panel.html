@@ -194,6 +194,59 @@
         </div>
       </div>
 
+      <div class="card mb-4 shadow-sm border-success">
+        <div class="card-body">
+          <h5 class="card-title mb-1">
+            <i class="bi bi-whatsapp text-success me-2"></i>Envío en lote
+          </h5>
+          <p class="text-muted small mb-3">
+            Envía la plantilla <strong>primer_contacto</strong> a todas las empresas en estado
+            <strong>Lista</strong> ({{ stats.lista }} pendientes).
+            Espera <strong>1 minuto</strong> entre cada mensaje.
+          </p>
+      
+          <!-- Botón de arranque -->
+          <button
+            id="btn-lote"
+            onclick="iniciarLote()"
+            class="btn btn-success btn-sm fw-bold"
+            {{ 'disabled' if estado_lote.activo }}
+          >
+            <i class="bi bi-send-fill me-1"></i>
+            {{ 'Lote en curso...' if estado_lote.activo else 'Enviar todas las pendientes' }}
+          </button>
+      
+          <!-- Progreso (visible durante y después del lote) -->
+          <div id="lote-status" class="{{ 'd-none' if not estado_lote.activo and not estado_lote.mensaje }}  mt-3">
+      
+            <!-- Barra de progreso -->
+            <div class="pipeline-progress mb-2">
+              <div class="pipeline-fill" id="lote-bar" style="width: 0%"></div>
+            </div>
+      
+            <!-- Mensaje de estado -->
+            <small class="text-muted" id="lote-msg">{{ estado_lote.mensaje }}</small>
+      
+            <!-- Contadores -->
+            <div class="d-flex gap-3 mt-2">
+              <span class="badge bg-success" id="lote-enviados">
+                ✅ Enviados: {{ estado_lote.enviados }}
+              </span>
+              <span class="badge bg-danger" id="lote-fallidos">
+                ❌ Fallidos: {{ estado_lote.fallidos }}
+              </span>
+              <span class="badge bg-secondary" id="lote-omitidos">
+                ⏭ Omitidos: {{ estado_lote.omitidos }}
+              </span>
+              <span class="badge bg-dark" id="lote-total">
+                📋 Total: {{ estado_lote.total }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+
       <!-- PASOS INDIVIDUALES -->
       <h5 class="mb-3"><i class="bi bi-tools me-2"></i>Pasos individuales</h5>
 
@@ -479,6 +532,81 @@
           alert("Error: " + e.message);
         }
       }
+
+
+let loteInterval = null;
+ 
+async function iniciarLote() {
+  if (!confirm(`¿Enviar WhatsApp a todas las empresas en estado Lista?\n\nSe esperará 1 minuto entre cada mensaje.\nEste proceso puede tardar bastante tiempo.`)) return;
+ 
+  const btn = document.getElementById('btn-lote');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Iniciando...';
+ 
+  try {
+    const res = await fetch('/accion/enviar-lote', { method: 'POST' });
+    const data = await res.json();
+ 
+    if (data.ok) {
+      document.getElementById('lote-status').classList.remove('d-none');
+      iniciarPollingLote();
+    } else {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-send-fill me-1"></i>Enviar todas las pendientes';
+      alert('Error: ' + data.msg);
+    }
+  } catch (e) {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-send-fill me-1"></i>Enviar todas las pendientes';
+    alert('Error de red: ' + e.message);
+  }
+}
+ 
+  function iniciarPollingLote() {
+        if (loteInterval) return;
+        loteInterval = setInterval(async () => {
+          try {
+            const res = await fetch('/accion/estado-lote');
+            const s = await res.json();
+      
+            // Actualizar mensaje
+            document.getElementById('lote-msg').textContent = s.mensaje;
+      
+            // Actualizar contadores
+            document.getElementById('lote-enviados').textContent  = `✅ Enviados: ${s.enviados}`;
+            document.getElementById('lote-fallidos').textContent  = `❌ Fallidos: ${s.fallidos}`;
+            document.getElementById('lote-omitidos').textContent  = `⏭ Omitidos: ${s.omitidos}`;
+            document.getElementById('lote-total').textContent     = `📋 Total: ${s.total}`;
+      
+            // Barra de progreso
+            const progreso = s.total > 0 ? ((s.enviados + s.fallidos + s.omitidos) / s.total) * 100 : 0;
+            document.getElementById('lote-bar').style.width = progreso + '%';
+      
+            // Si terminó
+            if (!s.activo) {
+              clearInterval(loteInterval);
+              loteInterval = null;
+              const btn = document.getElementById('btn-lote');
+              btn.disabled = false;
+              btn.innerHTML = '<i class="bi bi-send-fill me-1"></i>Enviar todas las pendientes';
+              document.getElementById('lote-bar').style.width = '100%';
+            }
+          } catch (e) {}
+        }, 3000); // polling cada 3 segundos
+      }
+      
+      // Si la página carga con un lote ya en curso, arrancar el polling
+      document.addEventListener('DOMContentLoaded', function() {
+  fetch('/accion/estado-lote')
+    .then(r => r.json())
+    .then(s => {
+      if (s.activo) {
+        document.getElementById('lote-status').classList.remove('d-none');
+        iniciarPollingLote();
+      }
+    });
+});
+
     </script>
   </body>
 </html>

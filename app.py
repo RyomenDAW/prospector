@@ -3,7 +3,7 @@ import io as io_module
 import threading
 from flask import Flask, render_template, request, jsonify, make_response, Response
 from database import obtener_empresas, actualizar_empresa, crear_tablas, obtener_empresa_por_id
-from sender import enviar_whatsapp
+from sender import enviar_whatsapp, enviar_lote
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -20,8 +20,17 @@ import json as json_module
 # ─────────────────────────────────────────────
 tareas_estado = {}
 
+# Estado del lote de envío (para polling desde el frontend)
+estado_lote = {
+    "activo": False,
+    "total": 0,
+    "enviados": 0,
+    "fallidos": 0,
+    "omitidos": 0,
+    "mensaje": "",
+}
+
 def ejecutar_en_hilo(nombre, funcion):
-    """Ejecuta una función pesada en un hilo separado para no bloquear la web."""
     tareas_estado[nombre] = {"estado": "ejecutando", "mensaje": "Iniciando..."}
     def wrapper():
         try:
@@ -70,7 +79,6 @@ def index():
         )
     ])
 
-    # Estadísticas para el template
     stats = {}
     for est in ["detectada", "auditada", "cualificada", "lista", "enviada", "rechazada"]:
         stats[est] = len(obtener_empresas(estado=est))
@@ -83,6 +91,7 @@ def index():
         total_enviadas_hoy=total_enviadas_hoy,
         limite=50,
         stats=stats,
+        estado_lote=estado_lote,
     )
 
 
@@ -95,38 +104,122 @@ def enviar(empresa_id):
     empresa = obtener_empresa_por_id(empresa_id)
     if not empresa:
         return jsonify({"ok": False, "msg": "Empresa no encontrada"}), 404
- 
+
     if empresa.get("estado") == "enviada":
         return jsonify({"ok": False, "msg": "Ya fue enviada anteriormente"}), 400
- 
+
     if not empresa.get("telefono"):
         return jsonify({"ok": False, "msg": "Sin teléfono registrado"}), 400
- 
-    # Ya NO validamos mensaje_generado — lo que se envía es la plantilla primer_contacto.
-    # El mensaje_generado sigue existiendo como preview para Miguel Ángel en la UI,
-    # pero Meta recibe la plantilla con {{1}}=nombre y {{2}}=sector.
- 
+
     resultado = enviar_whatsapp(
         empresa_id=empresa_id,
         telefono=empresa["telefono"],
-        empresa=empresa,          # ← dict completo para extraer nombre y sector
+        empresa=empresa,
     )
- 
+
     if resultado["ok"]:
         return jsonify({"ok": True, "message_id": resultado.get("message_id", "")})
     else:
         return jsonify({"ok": False, "msg": resultado.get("error", "Error desconocido")}), 500
+
 
 @app.route("/rechazar/<int:empresa_id>", methods=["POST"])
 def rechazar(empresa_id):
     actualizar_empresa(empresa_id, {"estado": "rechazada"})
     return jsonify({"ok": True})
 
+
 @app.route("/editar_mensaje/<int:empresa_id>", methods=["POST"])
 def editar_mensaje(empresa_id):
     nuevo_mensaje = request.json.get("mensaje", "")
     actualizar_empresa(empresa_id, {"mensaje_generado": nuevo_mensaje})
     return jsonify({"ok": True})
+
+
+# ─────────────────────────────────────────────
+# ENVÍO EN LOTE
+# ─────────────────────────────────────────────
+
+@app.route("/accion/enviar-lote", methods=["POST"])
+def accion_enviar_lote():
+    """
+    Envía todas las empresas en estado 'lista' en segundo plano.
+    Espera 1 minuto entre cada mensaje.
+    El frontend hace polling a /accion/estado-lote para ver el progreso.
+    """
+    global estado_lote
+
+    if estado_lote["activo"]:
+        return jsonify({"ok": False, "msg": "Ya hay un lote en curso"}), 400
+
+    empresas = obtener_empresas(estado="lista")
+    empresas = [e for e in empresas if e.get("telefono")]
+
+    if not empresas:
+        return jsonify({"ok": False, "msg": "No hay empresas pendientes con teléfono"}), 400
+
+    # Resetear estado del lote
+    estado_lote.update({
+        "activo": True,
+        "total": len(empresas),
+        "enviados": 0,
+        "fallidos": 0,
+        "omitidos": 0,
+        "mensaje": f"Iniciando envío de {len(empresas)} empresas...",
+    })
+
+    def tarea():
+        global estado_lote
+        import time as time_module
+
+        for i, empresa in enumerate(empresas):
+            if empresa.get("estado") == "enviada":
+                estado_lote["omitidos"] += 1
+                continue
+
+            estado_lote["mensaje"] = (
+                f"Enviando {i + 1}/{len(empresas)}: {empresa.get('nombre', '')}..."
+            )
+
+            resultado = enviar_whatsapp(
+                empresa_id=empresa["id"],
+                telefono=empresa["telefono"],
+                empresa=empresa,
+            )
+
+            if resultado["ok"]:
+                estado_lote["enviados"] += 1
+            else:
+                estado_lote["fallidos"] += 1
+
+            # Espera 1 minuto entre mensajes (excepto tras el último)
+            if i < len(empresas) - 1:
+                estado_lote["mensaje"] = (
+                    f"Esperando 60s antes del siguiente "
+                    f"({i + 1}/{len(empresas)} enviados)..."
+                )
+                time_module.sleep(60)
+
+        estado_lote["activo"] = False
+        estado_lote["mensaje"] = (
+            f"Lote completado: {estado_lote['enviados']} enviados, "
+            f"{estado_lote['fallidos']} fallidos, "
+            f"{estado_lote['omitidos']} omitidos."
+        )
+
+    thread = threading.Thread(target=tarea, daemon=True)
+    thread.start()
+
+    return jsonify({
+        "ok": True,
+        "msg": f"Lote iniciado: {len(empresas)} empresas. 1 minuto entre cada mensaje.",
+    })
+
+
+@app.route("/accion/estado-lote")
+def accion_estado_lote():
+    """Polling desde el frontend para ver el progreso del lote."""
+    return jsonify(estado_lote)
 
 
 # ─────────────────────────────────────────────
@@ -158,6 +251,7 @@ def exportar_csv():
         mimetype="text/csv",
         headers={"Content-Disposition": "attachment; filename=empresas.csv"}
     )
+
 
 @app.route("/exportar-pdf")
 def exportar_pdf():
@@ -204,18 +298,16 @@ def exportar_pdf():
 
 
 # ─────────────────────────────────────────────
-# PANEL DE CONTROL — EJECUTAR PIPELINE
+# PANEL DE CONTROL
 # ─────────────────────────────────────────────
 
 @app.route("/panel")
 def panel():
-    """Panel de control para ejecutar el pipeline de prospección."""
-    # Estadísticas rápidas
     stats = {}
     for estado in ["detectada", "auditada", "cualificada", "lista", "enviada", "rechazada"]:
         stats[estado] = len(obtener_empresas(estado=estado))
     stats["total"] = sum(stats.values())
-    return render_template("panel.html", tareas=tareas_estado, stats=stats)
+    return render_template("panel.html", tareas=tareas_estado, stats=stats, estado_lote=estado_lote)
 
 
 @app.route("/accion/buscar", methods=["POST"])
@@ -288,7 +380,6 @@ def accion_duplicados():
 
 @app.route("/accion/pipeline", methods=["POST"])
 def accion_pipeline():
-    """Ejecuta TODO el pipeline en orden: buscar → auditar → puntuar → generar."""
     sector = request.json.get("sector", "restaurantes")
     zona = request.json.get("zona", "Sevilla")
     max_res = request.json.get("max_resultados", 20)
@@ -316,7 +407,6 @@ def accion_pipeline():
 
 @app.route("/accion/estado")
 def accion_estado():
-    """Devuelve el estado actual de todas las tareas (polling desde el frontend)."""
     return jsonify(tareas_estado)
 
 
