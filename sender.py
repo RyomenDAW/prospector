@@ -72,12 +72,17 @@ def _en_horario_comercial():
 
 
 def _nombre_para_plantilla(empresa: dict) -> str:
-    """
-    Devuelve el valor para {{1}}.
-    Prioridad: nombre del contacto > nombre del negocio > "amigo"
-    """
-    nombre = (empresa.get("contacto_nombre") or empresa.get("nombre") or "amigo").strip()
-    return nombre.split()[0].capitalize()
+    # Si hay nombre de contacto real, usarlo (solo primer nombre)
+    contacto = empresa.get("contacto_nombre", "").strip()
+    if contacto:
+        return contacto.split()[0].capitalize()
+    
+    # Si no, usar el nombre completo de la empresa
+    nombre_empresa = (empresa.get("nombre") or "").strip()
+    if nombre_empresa:
+        return nombre_empresa
+    
+    return "amigo"
 
 
 def _sector_para_plantilla(empresa: dict) -> str:
