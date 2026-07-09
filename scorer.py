@@ -41,13 +41,13 @@ def calcular_score(empresa):
     # Valoración baja
     valoracion = empresa.get("valoracion") or 0
     if 0 < valoracion < 3.5:
-        score += 15
+        score += 20
         debilidades.append(f"Valoración baja ({valoracion}★)")
 
     # Sin teléfono
-    if not empresa.get("telefono"):
-        score += 10
-        debilidades.append("Sin teléfono visible en Google")
+    #if not empresa.get("telefono"):
+    #    score += 10
+    #    debilidades.append("Sin teléfono visible en Google")
 
     return min(score, 100), debilidades
 

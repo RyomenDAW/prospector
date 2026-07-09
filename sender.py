@@ -1,22 +1,12 @@
 """
-sender.py — Envío de WhatsApp via Meta Cloud API con plantilla primer_contacto
+sender.py — Envío de WhatsApp via Meta Cloud API con plantillas
 
-Plantilla usada: primer_contacto
-  {{1}} = nombre del dueño/contacto (o nombre del negocio si no hay contacto)
-  {{2}} = sector del negocio
+Plantillas disponibles (configurar PLANTILLA_NOMBRE):
+  - primer_contacto:     {{1}}=nombre, {{2}}=sector
+  - primer_contacto_web: {{1}}=nombre
 
-Texto que recibe el destinatario:
-  "Hola {{1}}, soy Miguel Ángel de La Guía de Sevilla 🔥
-   Trabajamos con negocios de {{2}} en Sevilla y me ha llamado
-   la atención tu empresa. Tengo una idea que creo que te puede interesar.
-   ¿Tienes 2 minutos para que te cuente?"
-
-El envío via plantilla es el único método válido cuando NOSOTROS iniciamos
-la conversación (el destinatario no ha escrito antes en las últimas 24h).
-
-Una vez el prospecto responde, la conversación aparece en el CRM
-(mismo número +34 681 96 24 89, mismo WABA) y el equipo continúa
-desde el chat del CRM normalmente.
+El texto espejo de cada plantilla se define en TEXTOS_PLANTILLAS
+para registrarlo en el chat del CRM tras el envío.
 """
 
 import time
@@ -32,9 +22,27 @@ from phone_validator import normalizar_telefono
 
 log = get_logger(__name__)
 
-# ─── Plantilla a usar para el primer contacto ─────────────────────────────────
+# ─── Plantilla activa ─────────────────────────────────────────────────────────
 PLANTILLA_NOMBRE = "primer_contacto"
-PLANTILLA_IDIOMA = "en"   # está creada en English en Meta
+PLANTILLA_IDIOMA = "en"
+
+# ─── Textos espejo de cada plantilla ─────────────────────────────────────────
+# Deben coincidir exactamente con el contenido aprobado en Meta.
+# Se usan para registrar el mensaje saliente en el chat del CRM.
+TEXTOS_PLANTILLAS = {
+    "primer_contacto": (
+        "Hola {nombre}, soy Miguel Ángel de La Guía de Sevilla \n\n"
+        "Trabajamos con negocios de {sector} en Sevilla y me ha llamado "
+        "la atención tu empresa. Tengo una idea que creo que te puede interesar.\n\n"
+        "¿Tienes 2 minutos para que te cuente?"
+    ),
+    "primer_contacto_web": (
+        "Hola {nombre}, soy Miguel Ángel de La Guía de Sevilla.\n\n"
+        "He visto que nos has dejado tus datos a través de nuestra web/formularios. "
+        "Quería escribirte directamente para ver en qué podemos echarte una mano.\n\n"
+        "¿Qué es lo que más te preocupa ahora mismo de tu negocio a nivel digital?"
+    ),
+}
 
 # ─── Meta Cloud API ───────────────────────────────────────────────────────────
 META_API_URL = (
@@ -69,31 +77,59 @@ def _nombre_para_plantilla(empresa: dict) -> str:
     Prioridad: nombre del contacto > nombre del negocio > "amigo"
     """
     nombre = (empresa.get("contacto_nombre") or empresa.get("nombre") or "amigo").strip()
-    # Usar solo el primer nombre si es compuesto
     return nombre.split()[0].capitalize()
 
 
 def _sector_para_plantilla(empresa: dict) -> str:
-    """
-    Devuelve el valor para {{2}} — sector legible en español.
-    """
+    """Devuelve el valor para {{2}} — sector legible en español."""
     mapeo = {
-        "restaurantes":        "restauración",
-        "clinicas":            "salud y clínicas",
-        "clinicas dentales":   "clínicas dentales",
-        "inmobiliarias":       "inmobiliarias",
-        "talleres":            "talleres mecánicos",
-        "talleres mecanicos":  "talleres mecánicos",
-        "academias":           "formación y academias",
-        "peluquerias":         "peluquería y estética",
-        "farmacias":           "farmacias",
-        "fontaneros":          "servicios de fontanería",
-        "hoteles":             "alojamiento turístico",
-        "airbnb":              "alojamiento turístico",
-        "gimnasios":           "fitness y salud",
+        "restaurantes":       "restauración",
+        "clinicas":           "salud y clínicas",
+        "clinicas dentales":  "clínicas dentales",
+        "inmobiliarias":      "inmobiliarias",
+        "talleres":           "talleres mecánicos",
+        "talleres mecanicos": "talleres mecánicos",
+        "academias":          "formación y academias",
+        "peluquerias":        "peluquería y estética",
+        "farmacias":          "farmacias",
+        "fontaneros":         "servicios de fontanería",
+        "hoteles":            "alojamiento turístico",
+        "airbnb":             "alojamiento turístico",
+        "gimnasios":          "fitness y salud",
     }
     sector = (empresa.get("sector") or "").lower().strip()
     return mapeo.get(sector, sector or "negocios locales")
+
+
+def _construir_componentes(nombre: str, sector: str) -> list:
+    """
+    Construye los componentes de la plantilla según cuáles variables usa.
+    primer_contacto      → {{1}} nombre, {{2}} sector
+    primer_contacto_web  → {{1}} nombre
+    """
+    if PLANTILLA_NOMBRE == "primer_contacto":
+        return [{
+            "type": "body",
+            "parameters": [
+                {"type": "text", "text": nombre},
+                {"type": "text", "text": sector},
+            ],
+        }]
+    elif PLANTILLA_NOMBRE == "primer_contacto_web":
+        return [{
+            "type": "body",
+            "parameters": [
+                {"type": "text", "text": nombre},
+            ],
+        }]
+    else:
+        # Fallback genérico: solo nombre
+        return [{
+            "type": "body",
+            "parameters": [
+                {"type": "text", "text": nombre},
+            ],
+        }]
 
 
 # ─────────────────────────────────────────────
@@ -102,12 +138,8 @@ def _sector_para_plantilla(empresa: dict) -> str:
 
 def enviar_whatsapp(empresa_id: int, telefono: str, empresa: dict) -> dict:
     """
-    Envía la plantilla primer_contacto a través de Meta Cloud API.
-
-    Args:
-        empresa_id: ID en la BD local
-        telefono:   teléfono del destinatario (se normaliza internamente)
-        empresa:    dict completo de la empresa (para extraer {{1}} y {{2}})
+    Envía la plantilla activa (PLANTILLA_NOMBRE) a través de Meta Cloud API
+    y registra la conversación + mensaje saliente en el CRM.
 
     Returns:
         {"ok": True,  "message_id": "wamid.xxx"}
@@ -128,15 +160,7 @@ def enviar_whatsapp(empresa_id: int, telefono: str, empresa: dict) -> dict:
         "template": {
             "name": PLANTILLA_NOMBRE,
             "language": {"code": PLANTILLA_IDIOMA},
-            "components": [
-                {
-                    "type": "body",
-                    "parameters": [
-                        {"type": "text", "text": nombre},   # {{1}}
-                        {"type": "text", "text": sector},   # {{2}}
-                    ],
-                }
-            ],
+            "components": _construir_componentes(nombre, sector),
         },
     }
 
@@ -145,16 +169,15 @@ def enviar_whatsapp(empresa_id: int, telefono: str, empresa: dict) -> dict:
         resp.raise_for_status()
         data = resp.json()
 
-        # Meta devuelve {"messages": [{"id": "wamid.xxx"}]}
         message_id = data.get("messages", [{}])[0].get("id", "")
         ahora = datetime.now().isoformat()
 
         actualizar_empresa(empresa_id, {
-            "estado":              "enviada",
-            "whatsapp_message_id": message_id,
-            "fecha_envio":         ahora,
+            "estado":               "enviada",
+            "whatsapp_message_id":  message_id,
+            "fecha_envio":          ahora,
             "fecha_ultimo_intento": ahora,
-            "intentos_contacto":   1,
+            "intentos_contacto":    1,
         })
 
         log.info(
@@ -162,12 +185,18 @@ def enviar_whatsapp(empresa_id: int, telefono: str, empresa: dict) -> dict:
             empresa_id, numero, nombre, sector, message_id,
         )
 
-                # Crear conversación en el CRM para que aparezca en el chat
-        crear_conversacion_crm(
-                telefono=numero,
-                nombre=f"[PROSPECTOR] {empresa.get('nombre', '')}",
+        # Texto espejo de la plantilla para registrarlo en el CRM
+        texto_enviado = TEXTOS_PLANTILLAS.get(PLANTILLA_NOMBRE, "").format(
+            nombre=nombre,
+            sector=sector,
         )
- 
+
+        crear_conversacion_crm(
+            telefono=numero,
+            nombre=f"[PROSPECTOR] {empresa.get('nombre', '')}",
+            mensaje_texto=texto_enviado,
+            wamid=message_id,
+        )
 
         return {"ok": True, "message_id": message_id}
 
@@ -189,7 +218,7 @@ def enviar_whatsapp(empresa_id: int, telefono: str, empresa: dict) -> dict:
 
 def enviar_lote(empresas: list) -> dict:
     """
-    Envía la plantilla primer_contacto a una lista de empresas
+    Envía la plantilla activa a una lista de empresas
     respetando todos los controles de seguridad.
     """
     resumen = {"enviados": 0, "fallidos": 0, "omitidos": 0}
@@ -200,7 +229,7 @@ def enviar_lote(empresas: list) -> dict:
         log.warning(msg)
         return {**resumen, "omitidos": len(empresas), "motivo": msg}
 
-    limite      = _limite_efectivo()
+    limite       = _limite_efectivo()
     enviadas_hoy = obtener_empresas_enviadas_hoy()
 
     if enviadas_hoy >= limite:
@@ -216,7 +245,6 @@ def enviar_lote(empresas: list) -> dict:
             resumen["omitidos"] += len(empresas) - i
             break
 
-        # Guards de seguridad
         if empresa.get("opt_out"):
             log.info("Omitida empresa_id=%s — opt-out", empresa["id"])
             resumen["omitidos"] += 1
@@ -242,7 +270,6 @@ def enviar_lote(empresas: list) -> dict:
         else:
             resumen["fallidos"] += 1
 
-        # Espera aleatoria entre mensajes
         hay_mas = (i < len(empresas) - 1) and (resumen["enviados"] < disponibles)
         if hay_mas:
             espera = random.randint(config.ESPERA_MIN_SEGUNDOS, config.ESPERA_MAX_SEGUNDOS)
