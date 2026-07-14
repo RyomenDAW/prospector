@@ -29,11 +29,22 @@ Reglas Inquebrantables:
 - Firma SIEMPRE exactamente así al final: "Miguel Ángel Soto - La Guía de Sevilla"
 """
 
+DEBILIDADES_UNIVERSALES = [
+    "Sin estrategia de captación activa de reseñas",
+    "Presencia en redes sociales sin estrategia de contenidos",
+    "Sin sistema de fidelización de clientes recurrentes",
+    "Visibilidad en Google Maps sin optimizar al detalle",
+]
+
+
 def generar_mensaje(empresa):
     debilidades = json.loads(empresa.get("debilidades") or "[]")
     
+
+
+    # Si no tiene debilidades detectadas, usar universales
     if not debilidades:
-        return None
+        debilidades = DEBILIDADES_UNIVERSALES
 
     user_prompt = f"""
 Genera un mensaje de WhatsApp para:
@@ -59,7 +70,7 @@ El mensaje debe:
 
     return response.content[0].text.strip()
 
-def generar_mensajes_todos(min_score=40):
+def generar_mensajes_todos(min_score=20):
     """Solo genera mensajes para empresas con score mínimo."""
     empresas = obtener_empresas(estado="cualificada")
     empresas_filtradas = [e for e in empresas if e.get("score", 0) >= min_score]
@@ -74,13 +85,13 @@ def generar_mensajes_todos(min_score=40):
                     "mensaje_generado": mensaje,
                     "estado": "lista",
                 })
-                print(f"  ✓ {empresa['nombre'][:40]}")
+                print(f"  ✓ {empresa['nombre'][:20]}")
             else:
-                print(f"  ✗ {empresa['nombre'][:40]} — sin debilidades")
+                print(f"  ✗ {empresa['nombre'][:20]} — sin debilidades")
         except Exception as e:
             print(f"  ✗ Error en {empresa['nombre']}: {e}")
 
     print("\nMensajes generados.")
 
 if __name__ == "__main__":
-    generar_mensajes_todos(min_score=40)
+    generar_mensajes_todos(min_score=20)

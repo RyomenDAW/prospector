@@ -355,7 +355,7 @@ def accion_puntuar():
 def accion_generar():
     def tarea():
         from messenger import generar_mensajes_todos
-        generar_mensajes_todos(min_score=40)
+        generar_mensajes_todos(min_score=20)
     ejecutar_en_hilo("generar", tarea)
     return jsonify({"ok": True, "msg": "Generando mensajes con Claude..."})
 
@@ -399,7 +399,7 @@ def accion_pipeline():
         puntuar_todas()
 
         tareas_estado["pipeline"]["mensaje"] = "4/4 — Generando mensajes con IA..."
-        generar_mensajes_todos(min_score=40)
+        generar_mensajes_todos(min_score=20)
 
     ejecutar_en_hilo("pipeline", tarea)
     return jsonify({"ok": True, "msg": f"Pipeline iniciado: {sector} en {zona}"})
