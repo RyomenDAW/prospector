@@ -80,6 +80,10 @@ ZONAS = {
     "Sevilla Alcosa":        "@37.4040,-5.9390,15z",
     "Sevilla San Bernardo":  "@37.3794,-5.9838,15z",
     "Sevilla La Palmera":    "@37.3560,-5.9810,15z",
+
+    "Sevilla Capital":           "@37.3886,-5.9953,13z",
+    "Sevilla Provincia":         "@37.3886,-5.9953,10z",
+
 }
 
 # Lista plana de nombres de zona para el dropdown del panel
