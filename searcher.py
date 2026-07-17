@@ -80,10 +80,6 @@ ZONAS = {
     "Sevilla Alcosa":        "@37.4040,-5.9390,15z",
     "Sevilla San Bernardo":  "@37.3794,-5.9838,15z",
     "Sevilla La Palmera":    "@37.3560,-5.9810,15z",
-
-    "Sevilla Capital":           "@37.3886,-5.9953,13z",
-    "Sevilla Provincia":         "@37.3886,-5.9953,10z",
-
 }
 
 # Lista plana de nombres de zona para el dropdown del panel
@@ -94,20 +90,17 @@ def buscar_empresas(sector, zona, max_resultados=20):
     """
     Busca empresas en Google Maps por sector y zona.
 
-    MEJORAS vs versión anterior:
-    - Usa coordenadas GPS (ll) en vez de texto "en zona" → más resultados
-    - Pagina automáticamente hasta max_resultados → antes solo 1ª página
-    - Modo "general" busca con múltiples queries genéricas
-    - Deduplica por teléfono dentro de la misma búsqueda
+    Garantiza que devuelve max_resultados empresas VÁLIDAS (con teléfono,
+    no duplicadas en BD). Si la primera página no da suficientes, sigue
+    paginando automáticamente hasta conseguirlas o agotar resultados.
     """
     print(f"Buscando: {sector} en {zona}...")
 
     if sector == "general":
         return _buscar_general(zona, max_resultados)
 
-    resultados = _buscar_con_paginacion(sector, zona, max_resultados)
-    empresas = _procesar_y_guardar(resultados, sector)
-    print(f"  Total: {len(empresas)} empresas guardadas.")
+    empresas = _buscar_hasta_completar(sector, zona, max_resultados)
+    print(f"  Total: {len(empresas)} empresas nuevas guardadas.")
     return empresas
 
 
@@ -120,97 +113,135 @@ def _buscar_general(zona, max_resultados):
     telefonos_vistos = set()
 
     for query in QUERIES_GENERAL:
-        resultados = _buscar_con_paginacion(query, zona, max_resultados=20)
+        resultados = _fetch_pagina(query, zona, start=0)
         for r in resultados:
             tel = r.get("phone", "")
             if tel and tel not in telefonos_vistos:
                 telefonos_vistos.add(tel)
                 todos.append(r)
 
-    # Para "general" inferimos el sector del tipo de Google Maps
     empresas = _procesar_y_guardar(todos[:max_resultados], "general")
     print(f"  Total general: {len(empresas)} empresas guardadas.")
     return empresas
 
 
-def _buscar_con_paginacion(query_sector, zona, max_resultados=20):
+def _fetch_pagina(query_sector, zona, start=0):
     """
-    Busca en Google Maps con paginación automática.
-
-    SerpAPI devuelve ~20 resultados por página. Si pides 40,
-    hace 2 llamadas (start=0 y start=20). Cada llamada consume
-    1 crédito de SerpAPI.
+    Una sola llamada a SerpAPI. Devuelve los resultados crudos.
+    Consume 1 crédito por llamada.
     """
     coordenadas = ZONAS.get(zona)
-    todos = []
+
+    params = {
+        "engine": "google_maps",
+        "q": query_sector,
+        "hl": "es",
+        "api_key": SERPAPI_KEY,
+        "start": start,
+    }
+
+    if coordenadas:
+        params["ll"] = coordenadas
+    else:
+        params["q"] = f"{query_sector} en {zona}"
+
+    try:
+        search = GoogleSearch(params)
+        results = search.get_dict()
+        return results.get("local_results", [])
+    except Exception as e:
+        print(f"  ✗ Error SerpAPI página {start}: {e}")
+        return []
+
+
+def _buscar_hasta_completar(sector, zona, max_resultados):
+    """
+    Pagina SerpAPI hasta conseguir max_resultados empresas VÁLIDAS.
+
+    "Válida" significa:
+    - Tiene nombre y teléfono
+    - No existe ya en BD (por teléfono)
+
+    Si pides 50, sigue paginando hasta tener 50 válidas nuevas
+    o hasta que SerpAPI se quede sin resultados.
+    Máximo 10 páginas (200 resultados brutos) como safety net.
+    """
+    # Cargar teléfonos existentes en BD para no insertar duplicados
+    telefonos_existentes = _cargar_telefonos_existentes()
+
+    empresas_guardadas = []
+    telefonos_esta_busqueda = set()
     start = 0
-    paginas_max = (max_resultados + 19) // 20  # ceil division
+    MAX_PAGINAS = 10  # 10 × 20 = 200 resultados máx de SerpAPI
 
-    for _ in range(paginas_max):
-        if len(todos) >= max_resultados:
+    for _ in range(MAX_PAGINAS):
+        if len(empresas_guardadas) >= max_resultados:
             break
 
-        params = {
-            "engine": "google_maps",
-            "q": query_sector,
-            "hl": "es",
-            "api_key": SERPAPI_KEY,
-            "start": start,
-        }
+        resultados = _fetch_pagina(sector, zona, start)
+        if not resultados:
+            break  # SerpAPI no tiene más
 
-        # Si tenemos coordenadas, usarlas (mucho más preciso).
-        # Si no, fallback al texto "en zona" como antes.
-        if coordenadas:
-            params["ll"] = coordenadas
-        else:
-            params["q"] = f"{query_sector} en {zona}"
+        for lugar in resultados:
+            if len(empresas_guardadas) >= max_resultados:
+                break
 
-        try:
-            search = GoogleSearch(params)
-            results = search.get_dict()
-        except Exception as e:
-            print(f"  ✗ Error SerpAPI página {start}: {e}")
-            break
+            nombre = lugar.get("title", "").strip()
+            telefono = lugar.get("phone", "").strip()
 
-        local = results.get("local_results", [])
-        if not local:
-            break  # No hay más resultados
+            # Sin nombre o teléfono → skip
+            if not nombre or not telefono:
+                continue
 
-        todos.extend(local)
+            # Ya existe en BD → skip (no gastar en auditar/puntuar otra vez)
+            if telefono in telefonos_existentes:
+                continue
+
+            # Ya lo encontramos en esta misma búsqueda → skip
+            if telefono in telefonos_esta_busqueda:
+                continue
+
+            telefonos_esta_busqueda.add(telefono)
+
+            datos = {
+                "nombre":      nombre,
+                "sector":      sector,
+                "direccion":   lugar.get("address", ""),
+                "telefono":    telefono,
+                "web":         lugar.get("website", ""),
+                "valoracion":  lugar.get("rating", 0),
+                "num_resenas": lugar.get("reviews", 0),
+            }
+
+            empresa_id = insertar_empresa(datos)
+            if empresa_id:
+                datos["id"] = empresa_id
+                empresas_guardadas.append(datos)
+                print(f"  ✓ {nombre[:40]} — {telefono}")
+            else:
+                # insertar_empresa devolvió None → duplicado por ON CONFLICT
+                print(f"  · {nombre[:40]} — ya existe en BD")
+
         start += 20
 
-        # Si devolvió menos de 20, no hay siguiente página
-        if len(local) < 20:
+        # Si SerpAPI devolvió menos de 20, no hay siguiente página
+        if len(resultados) < 20:
             break
 
-    return todos[:max_resultados]
+    return empresas_guardadas
 
 
-def _procesar_y_guardar(resultados, sector):
-    """Filtra, normaliza y guarda en BD. Devuelve lista de empresas guardadas."""
-    empresas = []
-    for lugar in resultados:
-        datos = {
-            "nombre":      lugar.get("title", ""),
-            "sector":      sector,
-            "direccion":   lugar.get("address", ""),
-            "telefono":    lugar.get("phone", ""),
-            "web":         lugar.get("website", ""),
-            "valoracion":  lugar.get("rating", 0),
-            "num_resenas": lugar.get("reviews", 0),
-        }
-
-        # Sin nombre o sin teléfono no tiene sentido prospectar
-        if not datos["nombre"] or not datos["telefono"]:
-            continue
-
-        empresa_id = insertar_empresa(datos)
-        if empresa_id:
-            datos["id"] = empresa_id
-            empresas.append(datos)
-            print(f"  ✓ {datos['nombre']} — {datos['telefono']}")
-
-    return empresas
+def _cargar_telefonos_existentes():
+    """
+    Carga todos los teléfonos que ya están en BD (cualquier estado).
+    Usado para filtrar duplicados antes de insertar.
+    """
+    try:
+        from database import obtener_empresas
+        todas = obtener_empresas()
+        return {e.get("telefono", "") for e in todas if e.get("telefono")}
+    except Exception:
+        return set()
 
 
 def buscar_todo():
