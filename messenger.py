@@ -46,6 +46,12 @@ def generar_mensaje(empresa):
     if not debilidades:
         debilidades = DEBILIDADES_UNIVERSALES
 
+        if empresa.get("tiene_web"):
+            debilidades = [d for d in debilidades if "sin web" not in d.lower()]
+    
+        if not debilidades:
+            debilidades = DEBILIDADES_UNIVERSALES
+
     user_prompt = f"""
 Genera un mensaje de WhatsApp para:
 - Nombre del negocio: {empresa['nombre']}
