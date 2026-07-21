@@ -122,12 +122,10 @@
       <div class="card mb-4 shadow-sm">
         <div class="card-body">
           <h5 class="card-title mb-3">
-            <i class="bi bi-lightning-charge-fill text-warning me-2"></i
-            >Pipeline completo
+            <i class="bi bi-lightning-charge-fill text-warning me-2"></i>Pipeline completo
           </h5>
           <p class="text-muted small mb-3">
-            Ejecuta todo el pipeline de un solo clic: buscar → auditar → puntuar
-            → generar mensajes
+            Ejecuta todo el pipeline de un solo clic: buscar → auditar → puntuar → generar mensajes
           </p>
 
           <div class="row g-3 mb-3">
@@ -146,15 +144,15 @@
                 <option value="autoescuelas">Autoescuelas</option>
                 <option value="gimnasios">Gimnasios</option>
                 <option value="centros de estetica">Centros de estética</option>
-                <option value="general">🔍 General (todos los negocios)</option>
+                <option value="general">General (todos los negocios)</option>
               </select>
             </div>
             <div class="col-md-4">
               <label class="form-label small fw-bold">Zona</label>
               <select id="pipeline-zona" class="form-select form-select-sm">
-                <optgroup label="Búsqueda amplia">
-                  <option value="Sevilla Capital">📍 Sevilla Capital (toda la ciudad)</option>
-                  <option value="Sevilla Provincia">🗺️ Sevilla Provincia (~80km)</option>
+                <optgroup label="Sevilla amplia">
+                  <option value="Sevilla Capital (toda la ciudad)">📍 Sevilla Capital (toda la ciudad)</option>
+                  <option value="Sevilla Provincia">🗺 Sevilla Provincia</option>
                 </optgroup>
                 <optgroup label="Municipios">
                   <option value="Dos Hermanas">Dos Hermanas</option>
@@ -167,30 +165,43 @@
                   <option value="La Rinconada">La Rinconada</option>
                   <option value="Bormujos">Bormujos</option>
                   <option value="Tomares">Tomares</option>
-                  <option value="San Juan de Aznalfarache">San Juan Aznal.</option>
+                  <option value="San Juan de Aznalfarache">San Juan de Aznalfarache</option>
                   <option value="Gines">Ginés</option>
                   <option value="Espartinas">Espartinas</option>
                   <option value="Gelves">Gelves</option>
-                  <option value="Castilleja de la Cuesta">Castilleja</option>
+                  <option value="Castilleja de la Cuesta">Castilleja de la Cuesta</option>
                 </optgroup>
-                <optgroup label="Sevilla Capital">
+                <optgroup label="Barrios de Sevilla">
                   <option value="Sevilla Centro">Centro</option>
+                  <option value="Sevilla Santa Cruz">Santa Cruz</option>
+                  <option value="Sevilla El Arenal">El Arenal</option>
                   <option value="Sevilla Triana">Triana</option>
-                  <option value="Sevilla Nervion">Nervión</option>
-                  <option value="Sevilla Macarena">Macarena</option>
-                  <option value="Sevilla Este">Este</option>
-                  <option value="Sevilla Los Remedios">Los Remedios</option>
-                  <option value="Sevilla Bellavista">Bellavista</option>
-                  <option value="Sevilla Cerro del Aguila">Cerro del Águila</option>
-                  <option value="Sevilla San Pablo">San Pablo</option>
+                  <option value="Sevilla San Vicente">San Vicente</option>
+                  <option value="Sevilla Alameda de Hercules">Alameda de Hércules</option>
+                  <option value="Sevilla La Macarena">La Macarena</option>
+                  <option value="Sevilla Feria">Feria</option>
+                  <option value="Sevilla San Luis">San Luis</option>
+                  <option value="Sevilla Capuchinos">Capuchinos</option>
                   <option value="Sevilla Pino Montano">Pino Montano</option>
-                  <option value="Sevilla Bermejales">Bermejales</option>
-                  <option value="Sevilla Santa Justa">Santa Justa</option>
-                  <option value="Sevilla Heliópolis">Heliópolis</option>
+                  <option value="Sevilla Valdezorras">Valdezorras</option>
+                  <option value="Sevilla Parque Miraflores">Parque Miraflores</option>
+                  <option value="Sevilla Nervion">Nervión</option>
+                  <option value="Sevilla San Bernardo">San Bernardo</option>
+                  <option value="Sevilla Ciudad Jardin">Ciudad Jardín</option>
+                  <option value="Sevilla La Florida">La Florida</option>
+                  <option value="Sevilla San Pablo">San Pablo</option>
                   <option value="Sevilla Torreblanca">Torreblanca</option>
                   <option value="Sevilla Alcosa">Alcosa</option>
-                  <option value="Sevilla San Bernardo">San Bernardo</option>
+                  <option value="Sevilla Este">Este</option>
+                  <option value="Sevilla Cerro del Aguila">Cerro del Águila</option>
+                  <option value="Sevilla Amate">Amate</option>
+                  <option value="Sevilla Los Pajaritos">Los Pajaritos</option>
+                  <option value="Sevilla Heliopolis">Heliópolis</option>
+                  <option value="Sevilla Los Bermejales">Los Bermejales</option>
+                  <option value="Sevilla Reina Mercedes">Reina Mercedes</option>
+                  <option value="Sevilla Bellavista">Bellavista</option>
                   <option value="Sevilla La Palmera">La Palmera</option>
+                  <option value="Sevilla Los Remedios">Los Remedios</option>
                 </optgroup>
               </select>
             </div>
@@ -219,17 +230,14 @@
           <!-- Barra de progreso del pipeline -->
           <div id="pipeline-status" class="d-none">
             <div class="pipeline-progress mb-2">
-              <div
-                class="pipeline-fill"
-                id="pipeline-bar"
-                style="width: 0%"
-              ></div>
+              <div class="pipeline-fill" id="pipeline-bar" style="width: 0%"></div>
             </div>
             <small class="text-muted" id="pipeline-msg">Iniciando...</small>
           </div>
         </div>
       </div>
 
+      <!-- ENVÍO EN LOTE -->
       <div class="card mb-4 shadow-sm border-success">
         <div class="card-body">
           <h5 class="card-title mb-1">
@@ -240,48 +248,42 @@
             <strong>Lista</strong> ({{ stats.lista }} pendientes).
             Espera <strong>1 minuto</strong> entre cada mensaje.
           </p>
-      
-          <!-- Botón de arranque -->
-          <button
-            id="btn-lote"
-            onclick="iniciarLote()"
-            class="btn btn-success btn-sm fw-bold"
-            {{ 'disabled' if estado_lote.activo }}
-          >
-            <i class="bi bi-send-fill me-1"></i>
-            {{ 'Lote en curso...' if estado_lote.activo else 'Enviar todas las pendientes' }}
-          </button>
-      
-          <!-- Progreso (visible durante y después del lote) -->
-          <div id="lote-status" class="{{ 'd-none' if not estado_lote.activo and not estado_lote.mensaje }}  mt-3">
-      
-            <!-- Barra de progreso -->
+
+          <div class="d-flex gap-2 flex-wrap">
+            <button
+              id="btn-lote"
+              onclick="iniciarLote()"
+              class="btn btn-success btn-sm fw-bold"
+              {{ 'disabled' if estado_lote.activo }}
+            >
+              <i class="bi bi-send-fill me-1"></i>
+              {{ 'Lote en curso...' if estado_lote.activo else 'Enviar listas (' + stats.lista|string + ')' }}
+            </button>
+            <button
+              id="btn-cualificadas"
+              onclick="enviarCualificadas()"
+              class="btn btn-outline-warning btn-sm fw-bold"
+              {{ 'disabled' if estado_lote.activo }}
+            >
+              <i class="bi bi-send me-1"></i>
+              Enviar cualificadas ({{ stats.cualificada }}) sin generar mensaje
+            </button>
+          </div>
+
+          <div id="lote-status" class="{{ 'd-none' if not estado_lote.activo and not estado_lote.mensaje }} mt-3">
             <div class="pipeline-progress mb-2">
               <div class="pipeline-fill" id="lote-bar" style="width: 0%"></div>
             </div>
-      
-            <!-- Mensaje de estado -->
             <small class="text-muted" id="lote-msg">{{ estado_lote.mensaje }}</small>
-      
-            <!-- Contadores -->
             <div class="d-flex gap-3 mt-2">
-              <span class="badge bg-success" id="lote-enviados">
-                ✅ Enviados: {{ estado_lote.enviados }}
-              </span>
-              <span class="badge bg-danger" id="lote-fallidos">
-                ❌ Fallidos: {{ estado_lote.fallidos }}
-              </span>
-              <span class="badge bg-secondary" id="lote-omitidos">
-                ⏭ Omitidos: {{ estado_lote.omitidos }}
-              </span>
-              <span class="badge bg-dark" id="lote-total">
-                📋 Total: {{ estado_lote.total }}
-              </span>
+              <span class="badge bg-success" id="lote-enviados">✅ Enviados: {{ estado_lote.enviados }}</span>
+              <span class="badge bg-danger" id="lote-fallidos">❌ Fallidos: {{ estado_lote.fallidos }}</span>
+              <span class="badge bg-secondary" id="lote-omitidos">⏭ Omitidos: {{ estado_lote.omitidos }}</span>
+              <span class="badge bg-dark" id="lote-total">📋 Total: {{ estado_lote.total }}</span>
             </div>
           </div>
         </div>
       </div>
-      
 
       <!-- PASOS INDIVIDUALES -->
       <h5 class="mb-3"><i class="bi bi-tools me-2"></i>Pasos individuales</h5>
@@ -291,51 +293,86 @@
         <div class="col-md-6">
           <div class="card step-card" id="step-buscar">
             <div class="card-body">
-              <h6>
-                <i class="bi bi-search me-2 text-primary"></i>1. Buscar empresas
-              </h6>
-              <p class="small text-muted mb-2">
-                Busca negocios en Google Maps por sector y zona con SerpAPI
-              </p>
-              <div class="d-flex gap-2 mb-2">
-                <select id="buscar-sector" class="form-select form-select-sm">
-                  <option value="restaurantes">Restaurantes</option>
-                  <option value="clinicas dentales">Clínicas</option>
-                  <option value="inmobiliarias">Inmobiliarias</option>
-                  <option value="talleres mecanicos">Talleres</option>
-                  <option value="academias">Academias</option>
-                  <option value="farmacias">Farmacias</option>
-                  <option value="peluquerias">Peluquerías</option>
-                  <option value="fontaneros">Fontaneros</option>
-                  <option value="clinicas veterinarias">Veterinarias</option>
-                  <option value="autoescuelas">Autoescuelas</option>
-                  <option value="gimnasios">Gimnasios</option>
-                  <option value="centros de estetica">Estética</option>
-                  <option value="general">🔍 General</option>
-                </select>
-                <select id="buscar-zona" class="form-select form-select-sm">
-                  <option value="Dos Hermanas">Dos Hermanas</option>
-                  <option value="Sevilla Centro">Sevilla Centro</option>
-                  <option value="Sevilla Triana">Triana</option>
-                  <option value="Sevilla Nervion">Nervión</option>
-                  <option value="Sevilla Macarena">Macarena</option>
-                  <option value="Alcala de Guadaira">Alcalá</option>
-                  <option value="Mairena del Aljarafe">Mairena</option>
-                  <option value="Utrera">Utrera</option>
-                  <option value="Carmona">Carmona</option>
-                  <option value="Ecija">Écija</option>
-                  <option value="Bormujos">Bormujos</option>
-                  <option value="Tomares">Tomares</option>
-                  <option value="La Rinconada">La Rinconada</option>
-                </select>
+              <h6><i class="bi bi-search me-2 text-primary"></i>1. Buscar empresas</h6>
+              <p class="small text-muted mb-2">Busca negocios en Google Maps por sector y zona con SerpAPI</p>
+              <div class="row g-2 mb-2">
+                <div class="col-6">
+                  <select id="buscar-sector" class="form-select form-select-sm">
+                    <option value="restaurantes">Restaurantes</option>
+                    <option value="clinicas dentales">Clínicas dentales</option>
+                    <option value="inmobiliarias">Inmobiliarias</option>
+                    <option value="talleres mecanicos">Talleres mecánicos</option>
+                    <option value="academias">Academias</option>
+                    <option value="farmacias">Farmacias</option>
+                    <option value="peluquerias">Peluquerías</option>
+                    <option value="fontaneros">Fontaneros</option>
+                    <option value="clinicas veterinarias">Clínicas veterinarias</option>
+                    <option value="autoescuelas">Autoescuelas</option>
+                    <option value="gimnasios">Gimnasios</option>
+                    <option value="centros de estetica">Centros de estética</option>
+                    <option value="general">General</option>
+                  </select>
+                </div>
+                <div class="col-6">
+                  <select id="buscar-zona" class="form-select form-select-sm">
+                    <optgroup label="Sevilla amplia">
+                      <option value="Sevilla Capital (toda la ciudad)">📍 Sevilla Capital</option>
+                      <option value="Sevilla Provincia">🗺 Sevilla Provincia</option>
+                    </optgroup>
+                    <optgroup label="Municipios">
+                      <option value="Dos Hermanas">Dos Hermanas</option>
+                      <option value="Alcala de Guadaira">Alcalá de Guadaíra</option>
+                      <option value="Mairena del Aljarafe">Mairena del Aljarafe</option>
+                      <option value="Utrera">Utrera</option>
+                      <option value="Carmona">Carmona</option>
+                      <option value="Ecija">Écija</option>
+                      <option value="Coria del Rio">Coria del Río</option>
+                      <option value="La Rinconada">La Rinconada</option>
+                      <option value="Bormujos">Bormujos</option>
+                      <option value="Tomares">Tomares</option>
+                      <option value="San Juan de Aznalfarache">San Juan de Aznalfarache</option>
+                      <option value="Gines">Ginés</option>
+                      <option value="Espartinas">Espartinas</option>
+                      <option value="Gelves">Gelves</option>
+                      <option value="Castilleja de la Cuesta">Castilleja</option>
+                    </optgroup>
+                    <optgroup label="Barrios de Sevilla">
+                      <option value="Sevilla Centro">Centro</option>
+                      <option value="Sevilla Santa Cruz">Santa Cruz</option>
+                      <option value="Sevilla El Arenal">El Arenal</option>
+                      <option value="Sevilla Triana">Triana</option>
+                      <option value="Sevilla San Vicente">San Vicente</option>
+                      <option value="Sevilla Alameda de Hercules">Alameda de Hércules</option>
+                      <option value="Sevilla La Macarena">La Macarena</option>
+                      <option value="Sevilla Feria">Feria</option>
+                      <option value="Sevilla San Luis">San Luis</option>
+                      <option value="Sevilla Capuchinos">Capuchinos</option>
+                      <option value="Sevilla Pino Montano">Pino Montano</option>
+                      <option value="Sevilla Valdezorras">Valdezorras</option>
+                      <option value="Sevilla Parque Miraflores">Parque Miraflores</option>
+                      <option value="Sevilla Nervion">Nervión</option>
+                      <option value="Sevilla San Bernardo">San Bernardo</option>
+                      <option value="Sevilla Ciudad Jardin">Ciudad Jardín</option>
+                      <option value="Sevilla La Florida">La Florida</option>
+                      <option value="Sevilla San Pablo">San Pablo</option>
+                      <option value="Sevilla Torreblanca">Torreblanca</option>
+                      <option value="Sevilla Alcosa">Alcosa</option>
+                      <option value="Sevilla Este">Este</option>
+                      <option value="Sevilla Cerro del Aguila">Cerro del Águila</option>
+                      <option value="Sevilla Amate">Amate</option>
+                      <option value="Sevilla Los Pajaritos">Los Pajaritos</option>
+                      <option value="Sevilla Heliopolis">Heliópolis</option>
+                      <option value="Sevilla Los Bermejales">Los Bermejales</option>
+                      <option value="Sevilla Reina Mercedes">Reina Mercedes</option>
+                      <option value="Sevilla Bellavista">Bellavista</option>
+                      <option value="Sevilla La Palmera">La Palmera</option>
+                      <option value="Sevilla Los Remedios">Los Remedios</option>
+                    </optgroup>
+                  </select>
+                </div>
               </div>
               <button
-                onclick="
-                  ejecutarAccion('buscar', {
-                    sector: qs('#buscar-sector').value,
-                    zona: qs('#buscar-zona').value,
-                  })
-                "
+                onclick="ejecutarAccion('buscar', { sector: qs('#buscar-sector').value, zona: qs('#buscar-zona').value })"
                 class="btn btn-primary btn-sm"
               >
                 <i class="bi bi-search me-1"></i>Buscar
@@ -355,17 +392,9 @@
         <div class="col-md-6">
           <div class="card step-card" id="step-auditar">
             <div class="card-body">
-              <h6>
-                <i class="bi bi-clipboard-check me-2 text-success"></i>2.
-                Auditar webs
-              </h6>
-              <p class="small text-muted mb-2">
-                Analiza SSL, velocidad móvil, detecta portales externos
-              </p>
-              <button
-                onclick="ejecutarAccion('auditar')"
-                class="btn btn-success btn-sm"
-              >
+              <h6><i class="bi bi-clipboard-check me-2 text-success"></i>2. Auditar webs</h6>
+              <p class="small text-muted mb-2">Analiza SSL, velocidad móvil, detecta portales externos</p>
+              <button onclick="ejecutarAccion('auditar')" class="btn btn-success btn-sm">
                 <i class="bi bi-clipboard-check me-1"></i>Auditar todas
               </button>
               <div class="step-status mt-2 small" id="status-auditar"></div>
@@ -377,16 +406,9 @@
         <div class="col-md-6">
           <div class="card step-card" id="step-puntuar">
             <div class="card-body">
-              <h6>
-                <i class="bi bi-star-fill me-2 text-warning"></i>3. Puntuar
-              </h6>
-              <p class="small text-muted mb-2">
-                Calcula el score 0-100 y detecta debilidades
-              </p>
-              <button
-                onclick="ejecutarAccion('puntuar')"
-                class="btn btn-warning btn-sm"
-              >
+              <h6><i class="bi bi-star-fill me-2 text-warning"></i>3. Puntuar</h6>
+              <p class="small text-muted mb-2">Calcula el score 0-100 y detecta debilidades</p>
+              <button onclick="ejecutarAccion('puntuar')" class="btn btn-warning btn-sm">
                 <i class="bi bi-star-fill me-1"></i>Puntuar todas
               </button>
               <div class="step-status mt-2 small" id="status-puntuar"></div>
@@ -398,17 +420,9 @@
         <div class="col-md-6">
           <div class="card step-card" id="step-generar">
             <div class="card-body">
-              <h6>
-                <i class="bi bi-chat-dots-fill me-2 text-info"></i>4. Generar
-                mensajes
-              </h6>
-              <p class="small text-muted mb-2">
-                Claude genera mensajes personalizados por sector (cuesta ~0,20€)
-              </p>
-              <button
-                onclick="ejecutarAccion('generar')"
-                class="btn btn-info btn-sm text-white"
-              >
+              <h6><i class="bi bi-chat-dots-fill me-2 text-info"></i>4. Generar mensajes</h6>
+              <p class="small text-muted mb-2">Claude genera mensajes personalizados por sector (cuesta ~0,20€)</p>
+              <button onclick="ejecutarAccion('generar')" class="btn btn-info btn-sm text-white">
                 <i class="bi bi-chat-dots-fill me-1"></i>Generar mensajes
               </button>
               <div class="step-status mt-2 small" id="status-generar"></div>
@@ -420,17 +434,9 @@
         <div class="col-md-6">
           <div class="card step-card" id="step-validar">
             <div class="card-body">
-              <h6>
-                <i class="bi bi-phone-fill me-2 text-secondary"></i>5. Validar
-                teléfonos
-              </h6>
-              <p class="small text-muted mb-2">
-                Normaliza números y verifica cuáles tienen WhatsApp
-              </p>
-              <button
-                onclick="ejecutarAccion('validar')"
-                class="btn btn-secondary btn-sm"
-              >
+              <h6><i class="bi bi-phone-fill me-2 text-secondary"></i>5. Validar teléfonos</h6>
+              <p class="small text-muted mb-2">Normaliza números y verifica cuáles tienen WhatsApp</p>
+              <button onclick="ejecutarAccion('validar')" class="btn btn-secondary btn-sm">
                 <i class="bi bi-phone-fill me-1"></i>Validar
               </button>
               <div class="step-status mt-2 small" id="status-validar"></div>
@@ -442,16 +448,9 @@
         <div class="col-md-6">
           <div class="card step-card" id="step-duplicados">
             <div class="card-body">
-              <h6>
-                <i class="bi bi-copy me-2 text-danger"></i>6. Limpiar duplicados
-              </h6>
-              <p class="small text-muted mb-2">
-                Detecta empresas duplicadas por nombre o teléfono
-              </p>
-              <button
-                onclick="ejecutarAccion('duplicados')"
-                class="btn btn-danger btn-sm"
-              >
+              <h6><i class="bi bi-copy me-2 text-danger"></i>6. Limpiar duplicados</h6>
+              <p class="small text-muted mb-2">Detecta empresas duplicadas por nombre o teléfono</p>
+              <button onclick="ejecutarAccion('duplicados')" class="btn btn-danger btn-sm">
                 <i class="bi bi-copy me-1"></i>Limpiar
               </button>
               <div class="step-status mt-2 small" id="status-duplicados"></div>
@@ -464,7 +463,6 @@
     <script>
       const qs = (sel) => document.querySelector(sel);
 
-      // Polling de estado cada 2 segundos
       let pollingInterval = null;
 
       function iniciarPolling() {
@@ -474,11 +472,7 @@
             const res = await fetch("/accion/estado");
             const data = await res.json();
             actualizarUI(data);
-
-            // Si no hay nada ejecutando, parar el polling
-            const hayActivo = Object.values(data).some(
-              (t) => t.estado === "ejecutando",
-            );
+            const hayActivo = Object.values(data).some((t) => t.estado === "ejecutando");
             if (!hayActivo && pollingInterval) {
               clearInterval(pollingInterval);
               pollingInterval = null;
@@ -488,26 +482,16 @@
       }
 
       function actualizarUI(tareas) {
-        // Actualizar cada step individual
         for (const [nombre, tarea] of Object.entries(tareas)) {
           const step = qs(`#step-${nombre}`);
           const status = qs(`#status-${nombre}`);
-
-          if (step) {
-            step.className = `card step-card ${tarea.estado}`;
-          }
+          if (step) step.className = `card step-card ${tarea.estado}`;
           if (status) {
-            const icono =
-              tarea.estado === "ejecutando"
-                ? "⏳"
-                : tarea.estado === "completado"
-                  ? "✅"
-                  : "❌";
+            const icono = tarea.estado === "ejecutando" ? "⏳" : tarea.estado === "completado" ? "✅" : "❌";
             status.innerHTML = `${icono} ${tarea.mensaje}`;
           }
         }
 
-        // Pipeline
         if (tareas.pipeline) {
           const pipelineStatus = qs("#pipeline-status");
           const pipelineMsg = qs("#pipeline-msg");
@@ -519,20 +503,13 @@
 
           if (tareas.pipeline.estado === "ejecutando") {
             btnPipeline.disabled = true;
-            btnPipeline.innerHTML =
-              '<span class="spinner-border spinner-border-sm me-1"></span>Ejecutando...';
-
-            // Calcular progreso por el paso actual
+            btnPipeline.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Ejecutando...';
             const paso = tareas.pipeline.mensaje.match(/(\d)\/4/);
-            if (paso) {
-              pipelineBar.style.width = (parseInt(paso[1]) / 4) * 100 + "%";
-            }
+            if (paso) pipelineBar.style.width = (parseInt(paso[1]) / 4) * 100 + "%";
           } else {
             btnPipeline.disabled = false;
-            btnPipeline.innerHTML =
-              '<i class="bi bi-play-fill me-1"></i>Ejecutar';
-            pipelineBar.style.width =
-              tareas.pipeline.estado === "completado" ? "100%" : "0%";
+            btnPipeline.innerHTML = '<i class="bi bi-play-fill me-1"></i>Ejecutar';
+            pipelineBar.style.width = tareas.pipeline.estado === "completado" ? "100%" : "0%";
           }
         }
       }
@@ -545,10 +522,8 @@
             body: JSON.stringify(datos),
           });
           const data = await res.json();
-
           const status = qs(`#status-${nombre}`);
           if (status) status.innerHTML = `⏳ ${data.msg}`;
-
           iniciarPolling();
         } catch (e) {
           alert("Error: " + e.message);
@@ -562,9 +537,7 @@
 
         const btn = qs("#btn-pipeline");
         btn.disabled = true;
-        btn.innerHTML =
-          '<span class="spinner-border spinner-border-sm me-1"></span>Iniciando...';
-
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Iniciando...';
         qs("#pipeline-status").classList.remove("d-none");
         qs("#pipeline-msg").textContent = "Iniciando pipeline...";
         qs("#pipeline-bar").style.width = "5%";
@@ -583,80 +556,105 @@
         }
       }
 
+      let loteInterval = null;
 
-let loteInterval = null;
- 
-async function iniciarLote() {
-  if (!confirm(`¿Enviar WhatsApp a todas las empresas en estado Lista?\n\nSe esperará 1 minuto entre cada mensaje.\nEste proceso puede tardar bastante tiempo.`)) return;
- 
-  const btn = document.getElementById('btn-lote');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Iniciando...';
- 
-  try {
-    const res = await fetch('/accion/enviar-lote', { method: 'POST' });
-    const data = await res.json();
- 
-    if (data.ok) {
-      document.getElementById('lote-status').classList.remove('d-none');
-      iniciarPollingLote();
-    } else {
-      btn.disabled = false;
-      btn.innerHTML = '<i class="bi bi-send-fill me-1"></i>Enviar todas las pendientes';
-      alert('Error: ' + data.msg);
-    }
-  } catch (e) {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="bi bi-send-fill me-1"></i>Enviar todas las pendientes';
-    alert('Error de red: ' + e.message);
-  }
-}
- 
-  function iniciarPollingLote() {
+      async function enviarCualificadas() {
+        if (!confirm(
+          `¿Enviar WhatsApp directamente a las {{ stats.cualificada }} empresas cualificadas?\n\n` +
+          `Se usará la plantilla primer_contacto sin generar mensaje previo.\n` +
+          `1 minuto entre cada mensaje.`
+        )) return;
+
+        const btn = document.getElementById("btn-cualificadas");
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Iniciando...';
+
+        try {
+          const res = await fetch("/accion/enviar-cualificadas", { method: "POST" });
+          const data = await res.json();
+
+          if (data.ok) {
+            document.getElementById("lote-status").classList.remove("d-none");
+            iniciarPollingLote();
+          } else {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-send me-1"></i>Enviar cualificadas sin generar mensaje';
+            alert("Error: " + data.msg);
+          }
+        } catch (e) {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="bi bi-send me-1"></i>Enviar cualificadas sin generar mensaje';
+          alert("Error de red: " + e.message);
+        }
+      }
+
+      async function iniciarLote() {
+        if (!confirm("¿Enviar WhatsApp a todas las empresas en estado Lista?\n\nSe esperará 1 minuto entre cada mensaje.\nEste proceso puede tardar bastante tiempo.")) return;
+
+        const btn = document.getElementById("btn-lote");
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Iniciando...';
+
+        try {
+          const res = await fetch("/accion/enviar-lote", { method: "POST" });
+          const data = await res.json();
+
+          if (data.ok) {
+            document.getElementById("lote-status").classList.remove("d-none");
+            iniciarPollingLote();
+          } else {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-send-fill me-1"></i>Enviar todas las pendientes';
+            alert("Error: " + data.msg);
+          }
+        } catch (e) {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="bi bi-send-fill me-1"></i>Enviar todas las pendientes';
+          alert("Error de red: " + e.message);
+        }
+      }
+
+      function iniciarPollingLote() {
         if (loteInterval) return;
         loteInterval = setInterval(async () => {
           try {
-            const res = await fetch('/accion/estado-lote');
+            const res = await fetch("/accion/estado-lote");
             const s = await res.json();
-      
-            // Actualizar mensaje
-            document.getElementById('lote-msg').textContent = s.mensaje;
-      
-            // Actualizar contadores
-            document.getElementById('lote-enviados').textContent  = `✅ Enviados: ${s.enviados}`;
-            document.getElementById('lote-fallidos').textContent  = `❌ Fallidos: ${s.fallidos}`;
-            document.getElementById('lote-omitidos').textContent  = `⏭ Omitidos: ${s.omitidos}`;
-            document.getElementById('lote-total').textContent     = `📋 Total: ${s.total}`;
-      
-            // Barra de progreso
+
+            document.getElementById("lote-msg").textContent = s.mensaje;
+            document.getElementById("lote-enviados").textContent = `✅ Enviados: ${s.enviados}`;
+            document.getElementById("lote-fallidos").textContent = `❌ Fallidos: ${s.fallidos}`;
+            document.getElementById("lote-omitidos").textContent = `⏭ Omitidos: ${s.omitidos}`;
+            document.getElementById("lote-total").textContent = `📋 Total: ${s.total}`;
+
             const progreso = s.total > 0 ? ((s.enviados + s.fallidos + s.omitidos) / s.total) * 100 : 0;
-            document.getElementById('lote-bar').style.width = progreso + '%';
-      
-            // Si terminó
+            document.getElementById("lote-bar").style.width = progreso + "%";
+
             if (!s.activo) {
               clearInterval(loteInterval);
               loteInterval = null;
-              const btn = document.getElementById('btn-lote');
-              btn.disabled = false;
-              btn.innerHTML = '<i class="bi bi-send-fill me-1"></i>Enviar todas las pendientes';
-              document.getElementById('lote-bar').style.width = '100%';
+              const btnLote = document.getElementById("btn-lote");
+              btnLote.disabled = false;
+              btnLote.innerHTML = '<i class="bi bi-send-fill me-1"></i>Enviar listas';
+              const btnCual = document.getElementById("btn-cualificadas");
+              btnCual.disabled = false;
+              btnCual.innerHTML = '<i class="bi bi-send me-1"></i>Enviar cualificadas sin generar mensaje';
+              document.getElementById("lote-bar").style.width = "100%";
             }
           } catch (e) {}
-        }, 3000); // polling cada 3 segundos
+        }, 3000);
       }
-      
-      // Si la página carga con un lote ya en curso, arrancar el polling
-      document.addEventListener('DOMContentLoaded', function() {
-  fetch('/accion/estado-lote')
-    .then(r => r.json())
-    .then(s => {
-      if (s.activo) {
-        document.getElementById('lote-status').classList.remove('d-none');
-        iniciarPollingLote();
-      }
-    });
-});
 
+      document.addEventListener("DOMContentLoaded", function () {
+        fetch("/accion/estado-lote")
+          .then((r) => r.json())
+          .then((s) => {
+            if (s.activo) {
+              document.getElementById("lote-status").classList.remove("d-none");
+              iniciarPollingLote();
+            }
+          });
+      });
     </script>
   </body>
 </html>

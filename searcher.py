@@ -1,17 +1,13 @@
 import os
+import time
 from dotenv import load_dotenv
 from serpapi import GoogleSearch
-from database import insertar_empresa, crear_tablas
+from database import insertar_empresa, obtener_empresas, crear_tablas
 
 load_dotenv()
 
 SERPAPI_KEY = os.getenv("SERPAPI_KEY")
 
-# ─────────────────────────────────────────────
-# SECTORES
-# "general" busca negocios de cualquier tipo — ideal para barrios
-# pequeños donde buscar por sector da pocos resultados.
-# ─────────────────────────────────────────────
 SECTORES = [
     "restaurantes",
     "clinicas dentales",
@@ -25,236 +21,174 @@ SECTORES = [
     "autoescuelas",
     "gimnasios",
     "centros de estetica",
-    "general",
 ]
 
-# Queries de búsqueda para el modo "general".
-# Se lanzan todas y se deduplican por teléfono.
-QUERIES_GENERAL = [
-    "negocios locales",
-    "empresas",
-    "comercios",
-    "tiendas",
-    "servicios",
-]
-
-# ─────────────────────────────────────────────
-# ZONAS CON COORDENADAS GPS
-# Google Maps responde MUCHO mejor con el parámetro ll (lat,lng,zoom)
-# que con texto "en Dos Hermanas". El zoom 14 cubre ~5km de radio,
-# suficiente para un municipio. El 13 cubre ~10km para zonas grandes.
-# ─────────────────────────────────────────────
+# Zonas con coordenadas GPS (lat, lng, zoom)
+# zoom 15 = ~1km radio, zoom 13 = ~5km radio, zoom 10 = ~40km radio
 ZONAS = {
-    # Municipios — zoom 14 (radio ~5km)
-    "Dos Hermanas":          "@37.2836,-5.9221,14z",
-    "Alcala de Guadaira":    "@37.3392,-5.8379,14z",
-    "Mairena del Aljarafe":  "@37.3447,-6.0636,14z",
-    "Utrera":                "@37.1861,-5.7816,14z",
-    "Carmona":               "@37.4710,-5.6430,14z",
-    "Ecija":                 "@37.5413,-5.0827,14z",
-    "Coria del Rio":         "@37.2873,-6.0541,14z",
-    "La Rinconada":          "@37.4867,-5.9813,14z",
-    "Bormujos":              "@37.3720,-6.0711,14z",
-    "Tomares":               "@37.3730,-6.0464,14z",
-    "San Juan de Aznalfarache": "@37.3663,-6.0286,14z",
-    "Gines":                 "@37.3842,-6.0773,14z",
-    "Espartinas":            "@37.3881,-6.1232,14z",
-    "Gelves":                "@37.3352,-6.0266,14z",
-    "Castilleja de la Cuesta": "@37.3831,-6.0535,14z",
+    # ── Sevilla amplia ─────────────────────────────────────────────────────────
+    "Sevilla Capital (toda la ciudad)": (37.3886, -5.9823, 13),
+    "Sevilla Provincia":                (37.3886, -5.9823, 10),
 
-    # Sevilla capital — zoom 15 (radio ~2.5km, más preciso por barrio)
-    "Sevilla Centro":        "@37.3886,-5.9953,15z",
-    "Sevilla Triana":        "@37.3826,-6.0055,15z",
-    "Sevilla Nervion":       "@37.3879,-5.9743,15z",
-    "Sevilla Macarena":      "@37.4038,-5.9899,15z",
-    "Sevilla Este":          "@37.3942,-5.9373,15z",
-    "Sevilla Los Remedios":  "@37.3757,-6.0070,15z",
-    "Sevilla Bellavista":    "@37.3504,-5.9789,15z",
-    "Sevilla Cerro del Aguila": "@37.3741,-5.9621,15z",
-    "Sevilla San Pablo":     "@37.4047,-5.9706,15z",
-    "Sevilla Pino Montano":  "@37.4200,-5.9900,15z",
-    "Sevilla Bermejales":    "@37.3546,-5.9876,15z",
-    "Sevilla Santa Justa":   "@37.3925,-5.9760,15z",
-    "Sevilla Heliópolis":    "@37.3538,-5.9864,15z",
-    "Sevilla Torreblanca":   "@37.3850,-5.9440,15z",
-    "Sevilla Alcosa":        "@37.4040,-5.9390,15z",
-    "Sevilla San Bernardo":  "@37.3794,-5.9838,15z",
-    "Sevilla La Palmera":    "@37.3560,-5.9810,15z",
+    # ── Municipios ─────────────────────────────────────────────────────────────
+    "Dos Hermanas":          (37.2817, -5.9211, 14),
+    "Alcala de Guadaira":    (37.3339, -5.8406, 14),
+    "Mairena del Aljarafe":  (37.3447, -6.0611, 15),
+    "Utrera":                (37.1836, -5.7789, 14),
+    "Carmona":               (37.4706, -5.6439, 14),
+    "Ecija":                 (37.5411, -5.0828, 14),
+    "Coria del Rio":         (37.2922, -6.0539, 15),
+    "La Rinconada":          (37.4839, -5.9811, 15),
+    "Bormujos":              (37.3683, -6.0733, 15),
+    "Tomares":               (37.3711, -6.0403, 15),
+    "San Juan de Aznalfarache": (37.3533, -6.0217, 15),
+    "Gines":                 (37.3817, -6.0722, 15),
+    "Espartinas":            (37.3939, -6.1197, 15),
+    "Gelves":                (37.3311, -6.0483, 15),
+    "Castilleja de la Cuesta": (37.3794, -6.0533, 15),
+
+    # ── Casco Antiguo ──────────────────────────────────────────────────────────
+    "Sevilla Centro":              (37.3886, -5.9823, 15),
+    "Sevilla Santa Cruz":          (37.3861, -5.9914, 15),
+    "Sevilla El Arenal":           (37.3856, -6.0017, 15),
+    "Sevilla Triana":              (37.3856, -6.0100, 15),
+    "Sevilla San Vicente":         (37.3908, -5.9972, 15),
+    "Sevilla Alameda de Hercules": (37.3944, -5.9928, 15),
+
+    # ── Macarena ───────────────────────────────────────────────────────────────
+    "Sevilla La Macarena":   (37.4033, -5.9861, 15),
+    "Sevilla Feria":         (37.3989, -5.9906, 15),
+    "Sevilla San Luis":      (37.3956, -5.9878, 15),
+    "Sevilla Capuchinos":    (37.4011, -5.9828, 15),
+    "Sevilla Pino Montano":  (37.4194, -5.9700, 15),
+
+    # ── Norte ──────────────────────────────────────────────────────────────────
+    "Sevilla Valdezorras":   (37.4322, -5.9606, 15),
+    "Sevilla Parque Miraflores": (37.4150, -5.9811, 15),
+
+    # ── Nervion / San Pablo ────────────────────────────────────────────────────
+    "Sevilla Nervion":       (37.3856, -5.9672, 15),
+    "Sevilla San Bernardo":  (37.3803, -5.9739, 15),
+    "Sevilla Ciudad Jardin": (37.3917, -5.9644, 15),
+    "Sevilla La Florida":    (37.3967, -5.9594, 15),
+    "Sevilla San Pablo":     (37.4078, -5.9617, 15),
+
+    # ── Este / Alcosa ──────────────────────────────────────────────────────────
+    "Sevilla Torreblanca":   (37.3811, -5.9356, 15),
+    "Sevilla Alcosa":        (37.3922, -5.9317, 15),
+    "Sevilla Este":          (37.3783, -5.9428, 15),
+
+    # ── Cerro Amate ────────────────────────────────────────────────────────────
+    "Sevilla Cerro del Aguila": (37.3711, -5.9533, 15),
+    "Sevilla Amate":         (37.3756, -5.9483, 15),
+    "Sevilla Los Pajaritos": (37.3706, -5.9644, 15),
+
+    # ── Sur ────────────────────────────────────────────────────────────────────
+    "Sevilla Heliopolis":    (37.3611, -5.9894, 15),
+    "Sevilla Los Bermejales": (37.3658, -6.0017, 15),
+    "Sevilla Reina Mercedes": (37.3578, -5.9872, 15),
+
+    # ── Bellavista / Los Remedios ──────────────────────────────────────────────
+    "Sevilla Bellavista":    (37.3339, -5.9883, 15),
+    "Sevilla La Palmera":    (37.3478, -5.9994, 15),
+    "Sevilla Los Remedios":  (37.3711, -6.0106, 15),
 }
 
-# Lista plana de nombres de zona para el dropdown del panel
-ZONAS_NOMBRES = list(ZONAS.keys())
+
+def _cargar_telefonos_existentes():
+    """Carga todos los teléfonos ya en BD para filtrar duplicados."""
+    todas = obtener_empresas()
+    return {e["telefono"] for e in todas if e.get("telefono")}
 
 
 def buscar_empresas(sector, zona, max_resultados=20):
     """
-    Busca empresas en Google Maps por sector y zona.
-
-    Garantiza que devuelve max_resultados empresas VÁLIDAS (con teléfono,
-    no duplicadas en BD). Si la primera página no da suficientes, sigue
-    paginando automáticamente hasta conseguirlas o agotar resultados.
+    Busca empresas en Google Maps via SerpAPI con coordenadas GPS.
+    Pagina hasta completar max_resultados válidos nuevos.
+    Filtra duplicados por teléfono contra la BD.
     """
+    coords = ZONAS.get(zona)
+    if coords:
+        lat, lng, zoom = coords
+        ll_param = f"@{lat},{lng},{zoom}z"
+        query = sector
+    else:
+        # Fallback para zonas sin coordenadas
+        ll_param = None
+        query = f"{sector} en {zona}"
+
     print(f"Buscando: {sector} en {zona}...")
 
-    if sector == "general":
-        return _buscar_general(zona, max_resultados)
+    telefonos_existentes = _cargar_telefonos_existentes()
+    empresas_guardadas = []
+    pagina = 0
+    max_paginas = 10  # safety net: máximo 200 resultados brutos
 
-    empresas = _buscar_hasta_completar(sector, zona, max_resultados)
-    print(f"  Total: {len(empresas)} empresas nuevas guardadas.")
-    return empresas
+    while len(empresas_guardadas) < max_resultados and pagina < max_paginas:
+        params = {
+            "engine": "google_maps",
+            "q": query,
+            "hl": "es",
+            "api_key": SERPAPI_KEY,
+            "start": pagina * 20,
+        }
+        if ll_param:
+            params["ll"] = ll_param
 
-
-def _buscar_general(zona, max_resultados):
-    """
-    Modo general: lanza varias queries genéricas y deduplica por teléfono.
-    Ideal para zonas pequeñas donde buscar por sector da pocos resultados.
-    """
-    todos = []
-    telefonos_vistos = set()
-
-    for query in QUERIES_GENERAL:
-        resultados = _fetch_pagina(query, zona, start=0)
-        for r in resultados:
-            tel = r.get("phone", "")
-            if tel and tel not in telefonos_vistos:
-                telefonos_vistos.add(tel)
-                todos.append(r)
-
-    empresas = _procesar_y_guardar(todos[:max_resultados], "general")
-    print(f"  Total general: {len(empresas)} empresas guardadas.")
-    return empresas
-
-
-def _fetch_pagina(query_sector, zona, start=0):
-    """
-    Una sola llamada a SerpAPI. Devuelve los resultados crudos.
-    Consume 1 crédito por llamada.
-    """
-    coordenadas = ZONAS.get(zona)
-
-    params = {
-        "engine": "google_maps",
-        "q": query_sector,
-        "hl": "es",
-        "api_key": SERPAPI_KEY,
-        "start": start,
-    }
-
-    if coordenadas:
-        params["ll"] = coordenadas
-    else:
-        params["q"] = f"{query_sector} en {zona}"
-
-    try:
         search = GoogleSearch(params)
         results = search.get_dict()
-        return results.get("local_results", [])
-    except Exception as e:
-        print(f"  ✗ Error SerpAPI página {start}: {e}")
-        return []
 
+        locales = results.get("local_results", [])
+        if not locales:
+            break  # No hay más resultados
 
-def _buscar_hasta_completar(sector, zona, max_resultados):
-    """
-    Pagina SerpAPI hasta conseguir max_resultados empresas VÁLIDAS.
-
-    "Válida" significa:
-    - Tiene nombre y teléfono
-    - No existe ya en BD (por teléfono)
-
-    Si pides 50, sigue paginando hasta tener 50 válidas nuevas
-    o hasta que SerpAPI se quede sin resultados.
-    Máximo 10 páginas (200 resultados brutos) como safety net.
-    """
-    # Cargar teléfonos existentes en BD para no insertar duplicados
-    telefonos_existentes = _cargar_telefonos_existentes()
-
-    empresas_guardadas = []
-    telefonos_esta_busqueda = set()
-    start = 0
-    MAX_PAGINAS = 10  # 10 × 20 = 200 resultados máx de SerpAPI
-
-    for _ in range(MAX_PAGINAS):
-        if len(empresas_guardadas) >= max_resultados:
-            break
-
-        resultados = _fetch_pagina(sector, zona, start)
-        if not resultados:
-            break  # SerpAPI no tiene más
-
-        for lugar in resultados:
+        for lugar in locales:
             if len(empresas_guardadas) >= max_resultados:
                 break
 
-            nombre = lugar.get("title", "").strip()
-            telefono = lugar.get("phone", "").strip()
+            telefono = lugar.get("phone", "")
+            if not telefono:
+                continue  # Sin teléfono no tiene sentido prospectar
 
-            # Sin nombre o teléfono → skip
-            if not nombre or not telefono:
-                continue
-
-            # Ya existe en BD → skip (no gastar en auditar/puntuar otra vez)
             if telefono in telefonos_existentes:
-                continue
-
-            # Ya lo encontramos en esta misma búsqueda → skip
-            if telefono in telefonos_esta_busqueda:
-                continue
-
-            telefonos_esta_busqueda.add(telefono)
+                continue  # Ya existe en BD
 
             datos = {
-                "nombre":      nombre,
+                "nombre":      lugar.get("title", ""),
                 "sector":      sector,
                 "direccion":   lugar.get("address", ""),
                 "telefono":    telefono,
                 "web":         lugar.get("website", ""),
                 "valoracion":  lugar.get("rating", 0),
                 "num_resenas": lugar.get("reviews", 0),
+                "zona":        zona,
             }
 
-            empresa_id = insertar_empresa(datos)
-            if empresa_id:
-                datos["id"] = empresa_id
-                empresas_guardadas.append(datos)
-                print(f"  ✓ {nombre[:40]} — {telefono}")
-            else:
-                # insertar_empresa devolvió None → duplicado por ON CONFLICT
-                print(f"  · {nombre[:40]} — ya existe en BD")
+            if datos["nombre"]:
+                empresa_id = insertar_empresa(datos)
+                if empresa_id:
+                    datos["id"] = empresa_id
+                    empresas_guardadas.append(datos)
+                    telefonos_existentes.add(telefono)
+                    print(f"  ✓ {datos['nombre']} — {telefono}")
 
-        start += 20
+        pagina += 1
+        if pagina < max_paginas and len(empresas_guardadas) < max_resultados:
+            time.sleep(0.5)  # Respeto a la API
 
-        # Si SerpAPI devolvió menos de 20, no hay siguiente página
-        if len(resultados) < 20:
-            break
-
+    print(f"  Total nuevas: {len(empresas_guardadas)} empresas.")
     return empresas_guardadas
 
 
-def _cargar_telefonos_existentes():
-    """
-    Carga todos los teléfonos que ya están en BD (cualquier estado).
-    Usado para filtrar duplicados antes de insertar.
-    """
-    try:
-        from database import obtener_empresas
-        todas = obtener_empresas()
-        return {e.get("telefono", "") for e in todas if e.get("telefono")}
-    except Exception:
-        return set()
-
-
-def buscar_todo():
+def buscar_todo(max_por_busqueda=10):
     """Busca en todos los sectores y zonas configurados."""
     crear_tablas()
     total = 0
     for zona in ZONAS:
         for sector in SECTORES:
-            if sector == "general":
-                continue  # general se lanza aparte, no en el barrido masivo
-            empresas = buscar_empresas(sector, zona, max_resultados=20)
+            empresas = buscar_empresas(sector, zona, max_resultados=max_por_busqueda)
             total += len(empresas)
-    print(f"\nTotal empresas guardadas: {total}")
+    print(f"\nTotal empresas nuevas guardadas: {total}")
 
 
 if __name__ == "__main__":
