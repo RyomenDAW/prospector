@@ -137,16 +137,11 @@ def editar_mensaje(empresa_id):
 
 
 # ─────────────────────────────────────────────
-# ENVÍO EN LOTE
+# ENVÍO EN LOTE — estado lista
 # ─────────────────────────────────────────────
 
 @app.route("/accion/enviar-lote", methods=["POST"])
 def accion_enviar_lote():
-    """
-    Envía todas las empresas en estado 'lista' en segundo plano.
-    Espera 1 minuto entre cada mensaje.
-    El frontend hace polling a /accion/estado-lote para ver el progreso.
-    """
     global estado_lote
 
     if estado_lote["activo"]:
@@ -158,7 +153,6 @@ def accion_enviar_lote():
     if not empresas:
         return jsonify({"ok": False, "msg": "No hay empresas pendientes con teléfono"}), 400
 
-    # Resetear estado del lote
     estado_lote.update({
         "activo": True,
         "total": len(empresas),
@@ -192,7 +186,6 @@ def accion_enviar_lote():
             else:
                 estado_lote["fallidos"] += 1
 
-            # Espera 1 minuto entre mensajes (excepto tras el último)
             if i < len(empresas) - 1:
                 estado_lote["mensaje"] = (
                     f"Esperando 60s antes del siguiente "
@@ -216,9 +209,77 @@ def accion_enviar_lote():
     })
 
 
+# ─────────────────────────────────────────────
+# ENVÍO EN LOTE — estado cualificada (sin generar mensaje)
+# ─────────────────────────────────────────────
+
+@app.route("/accion/enviar-cualificadas", methods=["POST"])
+def accion_enviar_cualificadas():
+    global estado_lote
+
+    if estado_lote["activo"]:
+        return jsonify({"ok": False, "msg": "Ya hay un lote en curso"}), 400
+
+    empresas = obtener_empresas(estado="cualificada")
+    empresas = [e for e in empresas if e.get("telefono")]
+
+    if not empresas:
+        return jsonify({"ok": False, "msg": "No hay cualificadas con teléfono"}), 400
+
+    estado_lote.update({
+        "activo": True,
+        "total": len(empresas),
+        "enviados": 0,
+        "fallidos": 0,
+        "omitidos": 0,
+        "mensaje": f"Iniciando envío de {len(empresas)} cualificadas...",
+    })
+
+    def tarea():
+        global estado_lote
+        import time as time_module
+
+        for i, empresa in enumerate(empresas):
+            estado_lote["mensaje"] = (
+                f"Enviando {i + 1}/{len(empresas)}: {empresa.get('nombre', '')}..."
+            )
+
+            resultado = enviar_whatsapp(
+                empresa_id=empresa["id"],
+                telefono=empresa["telefono"],
+                empresa=empresa,
+            )
+
+            if resultado["ok"]:
+                estado_lote["enviados"] += 1
+            else:
+                estado_lote["fallidos"] += 1
+
+            if i < len(empresas) - 1:
+                estado_lote["mensaje"] = (
+                    f"Esperando 60s antes del siguiente "
+                    f"({i + 1}/{len(empresas)} enviados)..."
+                )
+                time_module.sleep(60)
+
+        estado_lote["activo"] = False
+        estado_lote["mensaje"] = (
+            f"Lote completado: {estado_lote['enviados']} enviados, "
+            f"{estado_lote['fallidos']} fallidos, "
+            f"{estado_lote['omitidos']} omitidos."
+        )
+
+    thread = threading.Thread(target=tarea, daemon=True)
+    thread.start()
+
+    return jsonify({
+        "ok": True,
+        "msg": f"Lote iniciado: {len(empresas)} cualificadas. 1 minuto entre mensajes.",
+    })
+
+
 @app.route("/accion/estado-lote")
 def accion_estado_lote():
-    """Polling desde el frontend para ver el progreso del lote."""
     return jsonify(estado_lote)
 
 
