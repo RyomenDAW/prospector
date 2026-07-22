@@ -8,20 +8,62 @@ load_dotenv()
 
 SERPAPI_KEY = os.getenv("SERPAPI_KEY")
 
-SECTORES = [
-    "restaurantes",
-    "clinicas dentales",
-    "inmobiliarias",
-    "talleres mecanicos",
-    "academias",
-    "farmacias",
-    "peluquerias",
-    "fontaneros",
-    "clinicas veterinarias",
-    "autoescuelas",
-    "gimnasios",
-    "centros de estetica",
-]
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTORES + QUERIES ALTERNATIVAS
+#
+# La clave para maximizar SerpAPI: cada sector se busca con VARIAS queries
+# distintas. Google Maps devuelve lugares diferentes según el término exacto
+# ("restaurante" ≠ "bar de tapas" ≠ "comida para llevar"), así que rotando
+# queries sacamos negocios que una sola búsqueda nunca encontraría.
+#
+# Cada query añade ~un techo de 120 resultados nuevos potenciales por zona.
+# ─────────────────────────────────────────────────────────────────────────────
+SECTORES = {
+    "restaurantes": [
+        "restaurantes", "bar de tapas", "comida para llevar",
+        "cafeteria", "cerveceria", "asador", "marisqueria",
+    ],
+    "clinicas dentales": [
+        "clinica dental", "dentista", "ortodoncista",
+        "clinica de implantes dentales",
+    ],
+    "inmobiliarias": [
+        "inmobiliaria", "agencia inmobiliaria", "administrador de fincas",
+    ],
+    "talleres mecanicos": [
+        "taller mecanico", "taller de coches", "taller de chapa y pintura",
+        "neumaticos", "electricidad del automovil",
+    ],
+    "academias": [
+        "academia", "academia de ingles", "autoescuela",
+        "centro de formacion", "clases particulares", "guarderia",
+    ],
+    "farmacias": [
+        "farmacia", "parafarmacia", "ortopedia",
+    ],
+    "peluquerias": [
+        "peluqueria", "barberia", "salon de belleza", "centro de estetica",
+    ],
+    "fontaneros": [
+        "fontanero", "electricista", "cerrajero",
+        "reformas", "aire acondicionado instalacion",
+    ],
+    "clinicas veterinarias": [
+        "clinica veterinaria", "veterinario", "peluqueria canina",
+    ],
+    "gimnasios": [
+        "gimnasio", "centro deportivo", "crossfit", "estudio de pilates",
+        "estudio de yoga",
+    ],
+    "centros de estetica": [
+        "centro de estetica", "spa", "centro de depilacion laser",
+        "clinica estetica", "centro de unas",
+    ],
+    "general": [
+        "empresa", "negocio local", "comercio", "tienda",
+        "servicios profesionales", "asesoria", "gestoria",
+    ],
+}
 
 # Zonas con coordenadas GPS (lat, lng, zoom)
 # zoom 15 = ~1km radio, zoom 13 = ~5km radio, zoom 10 = ~40km radio
@@ -101,28 +143,24 @@ def _cargar_telefonos_existentes():
     return {e["telefono"] for e in todas if e.get("telefono")}
 
 
-def buscar_empresas(sector, zona, max_resultados=20):
+def _queries_para_sector(sector):
     """
-    Busca empresas en Google Maps via SerpAPI con coordenadas GPS.
-    Pagina hasta completar max_resultados válidos nuevos.
-    Filtra duplicados por teléfono contra la BD.
+    Devuelve la lista de queries alternativas de un sector.
+    Si el sector no está en el dict (compatibilidad), usa el propio nombre.
     """
-    coords = ZONAS.get(zona)
-    if coords:
-        lat, lng, zoom = coords
-        ll_param = f"@{lat},{lng},{zoom}z"
-        query = sector
-    else:
-        # Fallback para zonas sin coordenadas
-        ll_param = None
-        query = f"{sector} en {zona}"
+    return SECTORES.get(sector, [sector])
 
-    print(f"Buscando: {sector} en {zona}...")
 
-    telefonos_existentes = _cargar_telefonos_existentes()
-    empresas_guardadas = []
+def _buscar_una_query(query, sector, zona, ll_param, max_resultados,
+                      telefonos_existentes, empresas_guardadas):
+    """
+    Ejecuta UNA query concreta paginando hasta agotar resultados o llegar al máximo.
+    Muta telefonos_existentes y empresas_guardadas in-place.
+    Devuelve cuántas nuevas añadió esta query.
+    """
+    añadidas = 0
     pagina = 0
-    max_paginas = 10  # safety net: máximo 200 resultados brutos
+    max_paginas = 7  # Google Maps rara vez da más de 6-7 páginas útiles
 
     while len(empresas_guardadas) < max_resultados and pagina < max_paginas:
         params = {
@@ -135,23 +173,27 @@ def buscar_empresas(sector, zona, max_resultados=20):
         if ll_param:
             params["ll"] = ll_param
 
-        search = GoogleSearch(params)
-        results = search.get_dict()
+        try:
+            search = GoogleSearch(params)
+            results = search.get_dict()
+        except Exception as exc:
+            print(f"    ✗ Error SerpAPI en '{query}' pág {pagina}: {exc}")
+            break
 
         locales = results.get("local_results", [])
         if not locales:
-            break  # No hay más resultados
+            break
 
+        nuevas_en_pagina = 0
         for lugar in locales:
             if len(empresas_guardadas) >= max_resultados:
                 break
 
             telefono = lugar.get("phone", "")
             if not telefono:
-                continue  # Sin teléfono no tiene sentido prospectar
-
+                continue
             if telefono in telefonos_existentes:
-                continue  # Ya existe en BD
+                continue
 
             datos = {
                 "nombre":      lugar.get("title", ""),
@@ -170,17 +212,69 @@ def buscar_empresas(sector, zona, max_resultados=20):
                     datos["id"] = empresa_id
                     empresas_guardadas.append(datos)
                     telefonos_existentes.add(telefono)
-                    print(f"  ✓ {datos['nombre']} — {telefono}")
+                    añadidas += 1
+                    nuevas_en_pagina += 1
+                    print(f"  ✓ [{query}] {datos['nombre']} — {telefono}")
+
+        # Si una página entera no aportó nada nuevo, las siguientes tampoco
+        # (son los mismos resultados que ya tenemos). Cortamos esta query.
+        if nuevas_en_pagina == 0 and pagina > 0:
+            break
 
         pagina += 1
         if pagina < max_paginas and len(empresas_guardadas) < max_resultados:
-            time.sleep(0.5)  # Respeto a la API
+            time.sleep(0.4)
+
+    return añadidas
+
+
+def buscar_empresas(sector, zona, max_resultados=20):
+    """
+    Busca empresas en Google Maps via SerpAPI con coordenadas GPS.
+
+    ESTRATEGIA DE MAXIMIZACIÓN:
+    Rota entre varias queries alternativas del sector (restaurante, tapas,
+    cafetería...) para exprimir lugares distintos que una sola búsqueda no da.
+    Deduplica por teléfono globalmente. Corta una query cuando deja de aportar.
+    """
+    coords = ZONAS.get(zona)
+    if coords:
+        lat, lng, zoom = coords
+        ll_param = f"@{lat},{lng},{zoom}z"
+    else:
+        ll_param = None
+
+    print(f"Buscando: {sector} en {zona} (objetivo: {max_resultados})...")
+
+    telefonos_existentes = _cargar_telefonos_existentes()
+    empresas_guardadas = []
+
+    queries = _queries_para_sector(sector)
+
+    for query in queries:
+        if len(empresas_guardadas) >= max_resultados:
+            break
+
+        # Si no hay coordenadas, añadimos la zona al texto de la query
+        query_final = query if ll_param else f"{query} en {zona}"
+
+        añadidas = _buscar_una_query(
+            query=query_final,
+            sector=sector,
+            zona=zona,
+            ll_param=ll_param,
+            max_resultados=max_resultados,
+            telefonos_existentes=telefonos_existentes,
+            empresas_guardadas=empresas_guardadas,
+        )
+        print(f"    → '{query_final}': +{añadidas} nuevas "
+              f"({len(empresas_guardadas)}/{max_resultados})")
 
     print(f"  Total nuevas: {len(empresas_guardadas)} empresas.")
     return empresas_guardadas
 
 
-def buscar_todo(max_por_busqueda=10):
+def buscar_todo(max_por_busqueda=30):
     """Busca en todos los sectores y zonas configurados."""
     crear_tablas()
     total = 0
