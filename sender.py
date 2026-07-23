@@ -32,7 +32,7 @@ PLANTILLA_ACTIVA = "primer_contacto_escaparate"
 
 # URL del escaparate de servicios (botón de la plantilla).
 # Es estática en Meta, aquí se guarda solo para referencia/logs.
-URL_ESCAPARATE = "https://laguiadesevilla.es/servicios-pro"
+URL_ESCAPARATE = "https://laguiadesevilla.es/servicios"
 
 
 # ─── Registro de plantillas ───────────────────────────────────────────────────
