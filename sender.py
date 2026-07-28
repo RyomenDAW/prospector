@@ -228,6 +228,13 @@ def enviar_whatsapp(empresa_id: int, telefono: str, empresa: dict) -> dict:
             nombre=f"[PROSPECTOR] {empresa.get('nombre', '')}",
             mensaje_texto=texto_enviado,
             wamid=message_id,
+            
+        )
+
+        # Enviar ficha de empresa al CRM para que Nova pueda personalizar
+        _enviar_contexto_nova(
+            telefono=numero,
+            empresa=empresa,
         )
 
         return {"ok": True, "message_id": message_id}
@@ -310,3 +317,56 @@ def enviar_lote(empresas: list) -> dict:
 
     log.info("Lote completado: %s", resumen)
     return resumen
+
+def _enviar_contexto_nova(telefono: str, empresa: dict) -> None:
+    """
+    Envía la ficha de empresa al CRM para poblar nova_contexto
+    y activar Nova automáticamente en esa conversación.
+    """
+    import os
+
+    crm_url = os.environ.get("CRM_URL", "").rstrip("/")
+    secret  = os.environ.get("PROSPECTOR_SECRET", "")
+
+    if not crm_url or not secret:
+        log.warning("[Nova] CRM_URL o PROSPECTOR_SECRET no configurados — contexto no enviado")
+        return
+
+    # Construir lista de debilidades desde el campo dafo/debilidades
+    debilidades = []
+    dafo_raw = empresa.get("dafo") or empresa.get("debilidades") or ""
+    if isinstance(dafo_raw, str) and dafo_raw:
+        debilidades = [d.strip() for d in dafo_raw.split(",") if d.strip()]
+    elif isinstance(dafo_raw, list):
+        debilidades = dafo_raw
+
+    contexto = {
+        "nombre_empresa": empresa.get("nombre", ""),
+        "sector":         empresa.get("sector", ""),
+        "zona":           empresa.get("zona", ""),
+        "score":          empresa.get("score", 0),
+        "debilidades":    debilidades,
+    }
+
+    try:
+        resp = requests.post(
+            f"{crm_url}/api/whatsapp/nova/contexto/",
+            json={
+                "telefono": telefono,
+                "secret":   secret,
+                "contexto": contexto,
+            },
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            log.info(
+                "[Nova] Contexto enviado al CRM — telefono=%s, score=%s",
+                telefono, contexto["score"],
+            )
+        else:
+            log.warning(
+                "[Nova] CRM rechazó el contexto — status=%s, body=%s",
+                resp.status_code, resp.text[:200],
+            )
+    except requests.RequestException as exc:
+        log.warning("[Nova] Error enviando contexto al CRM: %s", exc)   
