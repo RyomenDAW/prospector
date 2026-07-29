@@ -5,9 +5,10 @@ REGISTRO DE PLANTILLAS (PLANTILLAS):
   Cada plantilla define su idioma, sus variables y su texto espejo.
   Para cambiar de plantilla activa basta con tocar PLANTILLA_ACTIVA.
 
-  - primer_contacto            {{1}}=nombre, {{2}}=sector   (idioma: en)
-  - primer_contacto_web        {{1}}=nombre                 (idioma: en)
+  - primer_contacto            {{1}}=nombre, {{2}}=sector   (idioma: es)
+  - primer_contacto_web        {{1}}=nombre                 (idioma: es)
   - primer_contacto_escaparate {{1}}=nombre, {{2}}=sector   (idioma: es) + botón URL
+  - seguimiento                {{1}}=nombre                 (idioma: es)
 
 El texto espejo se registra en el chat del CRM tras el envío, para que
 Miguel vea en el CRM exactamente lo que se le mandó al prospecto.
@@ -38,24 +39,28 @@ URL_ESCAPARATE = "https://laguiadesevilla.es/servicios"
 # ─── Registro de plantillas ───────────────────────────────────────────────────
 # "vars" define qué variables lleva el body, en orden.
 # "texto" debe coincidir con el contenido aprobado en Meta (texto espejo).
+# IMPORTANTE: todas las plantillas están en español (idioma: es).
+# Asegúrate de que en Meta también están aprobadas con language: es.
 PLANTILLAS = {
     "primer_contacto": {
-        "idioma": "en",
+        "idioma": "es",
         "vars": ["nombre", "sector"],
         "texto": (
-            "Hola {nombre}, soy Miguel Ángel de La Guía de Sevilla \n\n"
-            "Trabajamos con negocios de {sector} en Sevilla y me ha llamado "
-            "la atención tu empresa. Tengo una idea que creo que te puede interesar.\n\n"
+            "Hola {nombre}, soy Miguel Ángel de La Guía de Sevilla 👋\n\n"
+            "Llevamos más de 13 años trabajando con negocios de {sector} en Sevilla. "
+            "Los que más crecen digitalmente tienen algo en común "
+            "— y creo que tu empresa lo puede aplicar.\n\n"
             "¿Tienes 2 minutos para que te cuente?"
         ),
     },
     "primer_contacto_web": {
-        "idioma": "en",
+        "idioma": "es",
         "vars": ["nombre"],
         "texto": (
-            "Hola {nombre}, soy Miguel Ángel de La Guía de Sevilla.\n\n"
-            "He visto que nos has dejado tus datos a través de nuestra web/formularios. "
-            "Quería escribirte directamente para ver en qué podemos echarte una mano.\n\n"
+            "Hola {nombre}, soy Miguel Ángel de La Guía de Sevilla 👋\n\n"
+            "He visto que nos has dejado tus datos a través de nuestra web. "
+            "Llevamos más de 13 años ayudando a negocios en Sevilla a crecer "
+            "digitalmente y quería escribirte directamente.\n\n"
             "¿Qué es lo que más te preocupa ahora mismo de tu negocio a nivel digital?"
         ),
     },
@@ -63,13 +68,23 @@ PLANTILLAS = {
         "idioma": "es",
         "vars": ["nombre", "sector"],
         "texto": (
-            "Hola {nombre}, soy Miguel Ángel de La Guía de Sevilla.\n\n"
-            "Trabajamos con negocios de {sector} en Sevilla y me ha llamado la atención "
-            "tu empresa. Tengo una idea que creo que te puede encajar.\n\n"
-            "Te dejo aquí lo que hacemos y los precios, sin compromiso, por si quieres "
-            "echarle un vistazo con calma.\n\n"
-            "¿Te va bien que hablemos esta semana?\n\n"
+            "Hola {nombre}, soy Miguel Ángel de La Guía de Sevilla 👋\n\n"
+            "Llevamos más de 13 años trabajando con negocios de {sector} en Sevilla. "
+            "Los que más crecen digitalmente tienen algo en común "
+            "— y creo que tu empresa lo puede aplicar.\n\n"
+            "Te dejo lo que hacemos, con precios reales y sin relleno:\n\n"
             "👉 " + URL_ESCAPARATE
+        ),
+    },
+    "seguimiento": {
+        "idioma": "es",
+        "vars": ["nombre"],
+        "texto": (
+            "Hola {nombre}, soy Miguel Ángel de La Guía de Sevilla 👋\n\n"
+            "Hablamos hace unos días y me quedé con ganas de contarte "
+            "la idea que tenía para tu negocio.\n\n"
+            "¿Te viene bien esta semana o la próxima para que te la cuente "
+            "en 10 minutos?"
         ),
     },
 }
@@ -140,8 +155,6 @@ def _sector_para_plantilla(empresa: dict) -> str:
         "clinicas veterinarias": "clínicas veterinarias",
         "autoescuelas":          "autoescuelas",
         "centros de estetica":   "estética y belleza",
-        # "general" viene del modo de búsqueda genérica: sin esto la plantilla
-        # decía "negocios de general", que parecía una errata.
         "general":               "distintos sectores",
     }
     sector = (empresa.get("sector") or "").lower().strip()
@@ -228,7 +241,6 @@ def enviar_whatsapp(empresa_id: int, telefono: str, empresa: dict) -> dict:
             nombre=f"[PROSPECTOR] {empresa.get('nombre', '')}",
             mensaje_texto=texto_enviado,
             wamid=message_id,
-            
         )
 
         # Enviar ficha de empresa al CRM para que Nova pueda personalizar
@@ -318,6 +330,11 @@ def enviar_lote(empresas: list) -> dict:
     log.info("Lote completado: %s", resumen)
     return resumen
 
+
+# ─────────────────────────────────────────────
+# CONTEXTO NOVA → CRM
+# ─────────────────────────────────────────────
+
 def _enviar_contexto_nova(telefono: str, empresa: dict) -> None:
     """
     Envía la ficha de empresa al CRM para poblar nova_contexto
@@ -332,7 +349,6 @@ def _enviar_contexto_nova(telefono: str, empresa: dict) -> None:
         log.warning("[Nova] CRM_URL o PROSPECTOR_SECRET no configurados — contexto no enviado")
         return
 
-    # Construir lista de debilidades desde el campo dafo/debilidades
     debilidades = []
     dafo_raw = empresa.get("dafo") or empresa.get("debilidades") or ""
     if isinstance(dafo_raw, str) and dafo_raw:
@@ -369,4 +385,4 @@ def _enviar_contexto_nova(telefono: str, empresa: dict) -> None:
                 resp.status_code, resp.text[:200],
             )
     except requests.RequestException as exc:
-        log.warning("[Nova] Error enviando contexto al CRM: %s", exc)   
+        log.warning("[Nova] Error enviando contexto al CRM: %s", exc)

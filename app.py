@@ -472,10 +472,122 @@ def accion_estado():
 
 
 # ─────────────────────────────────────────────
+# SCHEDULER AUTOMÁTICO — Pipeline horario
+#
+# Ejecuta pipeline(general, Sevilla Provincia, 60)
+# cada hora dentro del horario comercial (9:00-20:00).
+# No ejecuta si ya hay un pipeline en curso.
+# Se lanza en un thread daemon al arrancar el servidor.
+# ─────────────────────────────────────────────
+
+def _scheduler_loop():
+    import time as time_module
+    from datetime import datetime
+
+    HORA_INICIO = 9    # 09:00
+    HORA_FIN    = 20   # última ejecución a las 20:00, termina antes de las 20:30
+    INTERVALO   = 3600 # 1 hora en segundos
+
+    # Esperar 30s al arrancar para que el servidor esté listo
+    time_module.sleep(30)
+
+    while True:
+        ahora      = datetime.now()
+        en_horario = HORA_INICIO <= ahora.hour < HORA_FIN
+        pipeline_activo = (
+            tareas_estado.get("pipeline", {}).get("estado") == "ejecutando"
+        )
+
+        if en_horario and not pipeline_activo:
+            print(
+                f"[Scheduler] Lanzando pipeline automático — "
+                f"{ahora.strftime('%H:%M:%S')}",
+                flush=True,
+            )
+            try:
+                from searcher import buscar_empresas
+                from auditor import auditar_todas
+                from scorer import puntuar_todas
+                from messenger import generar_mensajes_todos
+
+                tareas_estado["pipeline"] = {
+                    "estado": "ejecutando",
+                    "mensaje": "1/4 — [AUTO] Buscando general en Sevilla Provincia...",
+                }
+                buscar_empresas("general", "Sevilla Provincia", max_resultados=60)
+
+                tareas_estado["pipeline"]["mensaje"] = "2/4 — [AUTO] Auditando webs..."
+                auditar_todas()
+
+                tareas_estado["pipeline"]["mensaje"] = "3/4 — [AUTO] Calculando scores..."
+                puntuar_todas()
+
+                tareas_estado["pipeline"]["mensaje"] = "4/4 — [AUTO] Generando mensajes..."
+                generar_mensajes_todos(min_score=20)
+
+                tareas_estado["pipeline"] = {
+                    "estado": "completado",
+                    "mensaje": (
+                        f"[AUTO] Completado a las "
+                        f"{datetime.now().strftime('%H:%M')}"
+                    ),
+                }
+                print(
+                    f"[Scheduler] Pipeline completado — "
+                    f"{datetime.now().strftime('%H:%M:%S')}",
+                    flush=True,
+                )
+
+            except Exception as e:
+                tareas_estado["pipeline"] = {
+                    "estado": "error",
+                    "mensaje": f"[AUTO] Error: {str(e)[:200]}",
+                }
+                print(f"[Scheduler] Error: {e}", flush=True)
+
+        else:
+            if not en_horario:
+                print(
+                    f"[Scheduler] Fuera de horario "
+                    f"({ahora.strftime('%H:%M')}) — esperando",
+                    flush=True,
+                )
+            elif pipeline_activo:
+                print(
+                    f"[Scheduler] Pipeline en curso — saltando",
+                    flush=True,
+                )
+
+        time_module.sleep(INTERVALO)
+
+
+# Flag para que con gunicorn (varios workers) solo arranque un scheduler
+_scheduler_iniciado = False
+_scheduler_lock = threading.Lock()
+
+
+def _iniciar_scheduler_una_vez():
+    global _scheduler_iniciado
+    with _scheduler_lock:
+        if not _scheduler_iniciado:
+            _scheduler_iniciado = True
+            t = threading.Thread(target=_scheduler_loop, daemon=True)
+            t.start()
+            print("[Scheduler] Scheduler automático iniciado", flush=True)
+
+
+# Hook de Flask: arranca el scheduler en la primera petición
+@app.before_request
+def _lanzar_scheduler():
+    _iniciar_scheduler_una_vez()
+
+
+# ─────────────────────────────────────────────
 # ARRANQUE
 # ─────────────────────────────────────────────
 
 if __name__ == "__main__":
     import os
+    _iniciar_scheduler_una_vez()
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
