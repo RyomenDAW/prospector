@@ -30,6 +30,9 @@ estado_lote = {
     "mensaje": "",
 }
 
+# Control manual del scheduler automático
+scheduler_pausado = False
+
 def ejecutar_en_hilo(nombre, funcion):
     tareas_estado[nombre] = {"estado": "ejecutando", "mensaje": "Iniciando..."}
     def wrapper():
@@ -484,11 +487,10 @@ def _scheduler_loop():
     import time as time_module
     from datetime import datetime
 
-    HORA_INICIO = 9    # 09:00
-    HORA_FIN    = 20   # última ejecución a las 20:00, termina antes de las 20:30
-    INTERVALO   = 3600 # 1 hora en segundos
+    HORA_INICIO = 9
+    HORA_FIN    = 20
+    INTERVALO   = 3600
 
-    # Esperar 30s al arrancar para que el servidor esté listo
     time_module.sleep(30)
 
     while True:
@@ -498,12 +500,10 @@ def _scheduler_loop():
             tareas_estado.get("pipeline", {}).get("estado") == "ejecutando"
         )
 
-        if en_horario and not pipeline_activo:
-            print(
-                f"[Scheduler] Lanzando pipeline automático — "
-                f"{ahora.strftime('%H:%M:%S')}",
-                flush=True,
-            )
+        if scheduler_pausado:
+            print(f"[Scheduler] Pausado manualmente — esperando", flush=True)
+        elif en_horario and not pipeline_activo:
+            print(f"[Scheduler] Lanzando pipeline automático — {ahora.strftime('%H:%M:%S')}", flush=True)
             try:
                 from searcher import buscar_empresas
                 from auditor import auditar_todas
@@ -515,28 +515,18 @@ def _scheduler_loop():
                     "mensaje": "1/4 — [AUTO] Buscando general en Sevilla Provincia...",
                 }
                 buscar_empresas("general", "Sevilla Provincia", max_resultados=60)
-
                 tareas_estado["pipeline"]["mensaje"] = "2/4 — [AUTO] Auditando webs..."
                 auditar_todas()
-
                 tareas_estado["pipeline"]["mensaje"] = "3/4 — [AUTO] Calculando scores..."
                 puntuar_todas()
-
                 tareas_estado["pipeline"]["mensaje"] = "4/4 — [AUTO] Generando mensajes..."
                 generar_mensajes_todos(min_score=20)
 
                 tareas_estado["pipeline"] = {
                     "estado": "completado",
-                    "mensaje": (
-                        f"[AUTO] Completado a las "
-                        f"{datetime.now().strftime('%H:%M')}"
-                    ),
+                    "mensaje": f"[AUTO] Completado a las {datetime.now().strftime('%H:%M')}",
                 }
-                print(
-                    f"[Scheduler] Pipeline completado — "
-                    f"{datetime.now().strftime('%H:%M:%S')}",
-                    flush=True,
-                )
+                print(f"[Scheduler] Pipeline completado — {datetime.now().strftime('%H:%M:%S')}", flush=True)
 
             except Exception as e:
                 tareas_estado["pipeline"] = {
@@ -544,19 +534,11 @@ def _scheduler_loop():
                     "mensaje": f"[AUTO] Error: {str(e)[:200]}",
                 }
                 print(f"[Scheduler] Error: {e}", flush=True)
-
         else:
             if not en_horario:
-                print(
-                    f"[Scheduler] Fuera de horario "
-                    f"({ahora.strftime('%H:%M')}) — esperando",
-                    flush=True,
-                )
+                print(f"[Scheduler] Fuera de horario ({ahora.strftime('%H:%M')}) — esperando", flush=True)
             elif pipeline_activo:
-                print(
-                    f"[Scheduler] Pipeline en curso — saltando",
-                    flush=True,
-                )
+                print(f"[Scheduler] Pipeline en curso — saltando", flush=True)
 
         time_module.sleep(INTERVALO)
 
@@ -585,6 +567,18 @@ def _lanzar_scheduler():
 # ─────────────────────────────────────────────
 # ARRANQUE
 # ─────────────────────────────────────────────
+
+@app.route("/accion/scheduler-toggle", methods=["POST"])
+def accion_scheduler_toggle():
+    global scheduler_pausado
+    scheduler_pausado = not scheduler_pausado
+    estado = "pausado" if scheduler_pausado else "activo"
+    print(f"[Scheduler] Toggle manual → {estado}", flush=True)
+    return jsonify({"ok": True, "scheduler_pausado": scheduler_pausado})
+
+@app.route("/accion/scheduler-estado")
+def accion_scheduler_estado():
+    return jsonify({"scheduler_pausado": scheduler_pausado})
 
 if __name__ == "__main__":
     import os
