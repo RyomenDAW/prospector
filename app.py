@@ -488,14 +488,19 @@ def _scheduler_loop():
     from datetime import datetime
 
     HORA_INICIO = 9
-    HORA_FIN    = 20
+    HORA_FIN    = 18
     INTERVALO   = 3600
 
     time_module.sleep(30)
 
     while True:
         ahora      = datetime.now()
-        en_horario = HORA_INICIO <= ahora.hour < HORA_FIN
+        # HORARIOS
+        #  lunes(0) a viernes(4)
+        en_horario = (
+            ahora.weekday() <= 4
+            and HORA_INICIO <= ahora.hour < HORA_FIN
+        )
         pipeline_activo = (
             tareas_estado.get("pipeline", {}).get("estado") == "ejecutando"
         )
