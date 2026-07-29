@@ -77,7 +77,7 @@ PLANTILLAS = {
         ),
     },
     "seguimiento": {
-        "idioma": "es",
+        "idioma": "en",
         "vars": ["nombre"],
         "texto": (
             "Hola {nombre}, soy Miguel Ángel de La Guía de Sevilla 👋\n\n"
