@@ -20,7 +20,6 @@ import json as json_module
 # ─────────────────────────────────────────────
 tareas_estado = {}
 
-# Estado del lote de envío (para polling desde el frontend)
 estado_lote = {
     "activo": False,
     "total": 0,
@@ -30,7 +29,6 @@ estado_lote = {
     "mensaje": "",
 }
 
-# Control manual del scheduler automático
 scheduler_pausado = False
 
 def ejecutar_en_hilo(nombre, funcion):
@@ -63,7 +61,7 @@ def limpiar_emojis(texto):
 
 
 # ─────────────────────────────────────────────
-# VISTA PRINCIPAL — LISTADO DE EMPRESAS
+# VISTA PRINCIPAL
 # ─────────────────────────────────────────────
 
 @app.route("/")
@@ -107,19 +105,11 @@ def enviar(empresa_id):
     empresa = obtener_empresa_por_id(empresa_id)
     if not empresa:
         return jsonify({"ok": False, "msg": "Empresa no encontrada"}), 404
-
     if empresa.get("estado") == "enviada":
         return jsonify({"ok": False, "msg": "Ya fue enviada anteriormente"}), 400
-
     if not empresa.get("telefono"):
         return jsonify({"ok": False, "msg": "Sin teléfono registrado"}), 400
-
-    resultado = enviar_whatsapp(
-        empresa_id=empresa_id,
-        telefono=empresa["telefono"],
-        empresa=empresa,
-    )
-
+    resultado = enviar_whatsapp(empresa_id=empresa_id, telefono=empresa["telefono"], empresa=empresa)
     if resultado["ok"]:
         return jsonify({"ok": True, "message_id": resultado.get("message_id", "")})
     else:
@@ -140,145 +130,74 @@ def editar_mensaje(empresa_id):
 
 
 # ─────────────────────────────────────────────
-# ENVÍO EN LOTE — estado lista
+# ENVIO EN LOTE — lista
 # ─────────────────────────────────────────────
 
 @app.route("/accion/enviar-lote", methods=["POST"])
 def accion_enviar_lote():
     global estado_lote
-
     if estado_lote["activo"]:
         return jsonify({"ok": False, "msg": "Ya hay un lote en curso"}), 400
-
     empresas = obtener_empresas(estado="lista")
     empresas = [e for e in empresas if e.get("telefono")]
-
     if not empresas:
         return jsonify({"ok": False, "msg": "No hay empresas pendientes con teléfono"}), 400
-
-    estado_lote.update({
-        "activo": True,
-        "total": len(empresas),
-        "enviados": 0,
-        "fallidos": 0,
-        "omitidos": 0,
-        "mensaje": f"Iniciando envío de {len(empresas)} empresas...",
-    })
-
+    estado_lote.update({"activo": True, "total": len(empresas), "enviados": 0, "fallidos": 0, "omitidos": 0, "mensaje": f"Iniciando envío de {len(empresas)} empresas..."})
     def tarea():
         global estado_lote
         import time as time_module
-
         for i, empresa in enumerate(empresas):
             if empresa.get("estado") == "enviada":
                 estado_lote["omitidos"] += 1
                 continue
-
-            estado_lote["mensaje"] = (
-                f"Enviando {i + 1}/{len(empresas)}: {empresa.get('nombre', '')}..."
-            )
-
-            resultado = enviar_whatsapp(
-                empresa_id=empresa["id"],
-                telefono=empresa["telefono"],
-                empresa=empresa,
-            )
-
+            estado_lote["mensaje"] = f"Enviando {i + 1}/{len(empresas)}: {empresa.get('nombre', '')}..."
+            resultado = enviar_whatsapp(empresa_id=empresa["id"], telefono=empresa["telefono"], empresa=empresa)
             if resultado["ok"]:
                 estado_lote["enviados"] += 1
             else:
                 estado_lote["fallidos"] += 1
-
             if i < len(empresas) - 1:
-                estado_lote["mensaje"] = (
-                    f"Esperando 60s antes del siguiente "
-                    f"({i + 1}/{len(empresas)} enviados)..."
-                )
+                estado_lote["mensaje"] = f"Esperando 60s antes del siguiente ({i + 1}/{len(empresas)} enviados)..."
                 time_module.sleep(60)
-
         estado_lote["activo"] = False
-        estado_lote["mensaje"] = (
-            f"Lote completado: {estado_lote['enviados']} enviados, "
-            f"{estado_lote['fallidos']} fallidos, "
-            f"{estado_lote['omitidos']} omitidos."
-        )
-
+        estado_lote["mensaje"] = f"Lote completado: {estado_lote['enviados']} enviados, {estado_lote['fallidos']} fallidos, {estado_lote['omitidos']} omitidos."
     thread = threading.Thread(target=tarea, daemon=True)
     thread.start()
-
-    return jsonify({
-        "ok": True,
-        "msg": f"Lote iniciado: {len(empresas)} empresas. 1 minuto entre cada mensaje.",
-    })
+    return jsonify({"ok": True, "msg": f"Lote iniciado: {len(empresas)} empresas. 1 minuto entre cada mensaje."})
 
 
 # ─────────────────────────────────────────────
-# ENVÍO EN LOTE — estado cualificada (sin generar mensaje)
+# ENVIO EN LOTE — cualificada
 # ─────────────────────────────────────────────
 
 @app.route("/accion/enviar-cualificadas", methods=["POST"])
 def accion_enviar_cualificadas():
     global estado_lote
-
     if estado_lote["activo"]:
         return jsonify({"ok": False, "msg": "Ya hay un lote en curso"}), 400
-
     empresas = obtener_empresas(estado="cualificada")
     empresas = [e for e in empresas if e.get("telefono")]
-
     if not empresas:
         return jsonify({"ok": False, "msg": "No hay cualificadas con teléfono"}), 400
-
-    estado_lote.update({
-        "activo": True,
-        "total": len(empresas),
-        "enviados": 0,
-        "fallidos": 0,
-        "omitidos": 0,
-        "mensaje": f"Iniciando envío de {len(empresas)} cualificadas...",
-    })
-
+    estado_lote.update({"activo": True, "total": len(empresas), "enviados": 0, "fallidos": 0, "omitidos": 0, "mensaje": f"Iniciando envío de {len(empresas)} cualificadas..."})
     def tarea():
         global estado_lote
         import time as time_module
-
         for i, empresa in enumerate(empresas):
-            estado_lote["mensaje"] = (
-                f"Enviando {i + 1}/{len(empresas)}: {empresa.get('nombre', '')}..."
-            )
-
-            resultado = enviar_whatsapp(
-                empresa_id=empresa["id"],
-                telefono=empresa["telefono"],
-                empresa=empresa,
-            )
-
+            estado_lote["mensaje"] = f"Enviando {i + 1}/{len(empresas)}: {empresa.get('nombre', '')}..."
+            resultado = enviar_whatsapp(empresa_id=empresa["id"], telefono=empresa["telefono"], empresa=empresa)
             if resultado["ok"]:
                 estado_lote["enviados"] += 1
             else:
                 estado_lote["fallidos"] += 1
-
             if i < len(empresas) - 1:
-                estado_lote["mensaje"] = (
-                    f"Esperando 60s antes del siguiente "
-                    f"({i + 1}/{len(empresas)} enviados)..."
-                )
+                estado_lote["mensaje"] = f"Esperando 60s antes del siguiente ({i + 1}/{len(empresas)} enviados)..."
                 time_module.sleep(60)
-
         estado_lote["activo"] = False
-        estado_lote["mensaje"] = (
-            f"Lote completado: {estado_lote['enviados']} enviados, "
-            f"{estado_lote['fallidos']} fallidos, "
-            f"{estado_lote['omitidos']} omitidos."
-        )
-
+        estado_lote["mensaje"] = f"Lote completado: {estado_lote['enviados']} enviados, {estado_lote['fallidos']} fallidos, {estado_lote['omitidos']} omitidos."
     thread = threading.Thread(target=tarea, daemon=True)
     thread.start()
-
-    return jsonify({
-        "ok": True,
-        "msg": f"Lote iniciado: {len(empresas)} cualificadas. 1 minuto entre mensajes.",
-    })
+    return jsonify({"ok": True, "msg": f"Lote iniciado: {len(empresas)} cualificadas. 1 minuto entre mensajes."})
 
 
 @app.route("/accion/estado-lote")
@@ -297,24 +216,9 @@ def exportar_csv():
     writer = csv.writer(output)
     writer.writerow(["Nombre", "Sector", "Direccion", "Zona", "Telefono", "Web", "Email", "Valoracion", "Resenas", "Score"])
     for e in empresas:
-        writer.writerow([
-            e.get("nombre", ""),
-            e.get("sector", ""),
-            e.get("direccion", ""),
-            e.get("zona", ""),
-            e.get("telefono", ""),
-            e.get("web", ""),
-            e.get("email", ""),
-            e.get("valoracion", ""),
-            e.get("num_resenas", ""),
-            e.get("score", ""),
-        ])
+        writer.writerow([e.get("nombre",""), e.get("sector",""), e.get("direccion",""), e.get("zona",""), e.get("telefono",""), e.get("web",""), e.get("email",""), e.get("valoracion",""), e.get("num_resenas",""), e.get("score","")])
     output.seek(0)
-    return Response(
-        output.getvalue(),
-        mimetype="text/csv",
-        headers={"Content-Disposition": "attachment; filename=empresas.csv"}
-    )
+    return Response(output.getvalue(), mimetype="text/csv", headers={"Content-Disposition": "attachment; filename=empresas.csv"})
 
 
 @app.route("/exportar-pdf")
@@ -322,27 +226,17 @@ def exportar_pdf():
     estado = request.args.get("estado", "lista")
     empresas = obtener_empresas(estado=estado)
     buffer = io_module.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4,
-        rightMargin=2*cm, leftMargin=2*cm,
-        topMargin=2*cm, bottomMargin=2*cm)
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=2*cm, leftMargin=2*cm, topMargin=2*cm, bottomMargin=2*cm)
     styles = getSampleStyleSheet()
-    titulo = ParagraphStyle('t', fontSize=18, textColor=colors.HexColor('#1a1a2e'),
-        spaceAfter=4, alignment=TA_CENTER, fontName='Helvetica-Bold')
-    subtitulo = ParagraphStyle('s', fontSize=10, textColor=colors.grey,
-        spaceAfter=16, alignment=TA_CENTER)
-    empresa_nombre = ParagraphStyle('en', fontSize=13, fontName='Helvetica-Bold',
-        textColor=colors.HexColor('#1a1a2e'), spaceBefore=14, spaceAfter=2)
+    titulo = ParagraphStyle('t', fontSize=18, textColor=colors.HexColor('#1a1a2e'), spaceAfter=4, alignment=TA_CENTER, fontName='Helvetica-Bold')
+    subtitulo = ParagraphStyle('s', fontSize=10, textColor=colors.grey, spaceAfter=16, alignment=TA_CENTER)
+    empresa_nombre = ParagraphStyle('en', fontSize=13, fontName='Helvetica-Bold', textColor=colors.HexColor('#1a1a2e'), spaceBefore=14, spaceAfter=2)
     detalle = ParagraphStyle('d', fontSize=9, textColor=colors.grey, spaceAfter=2)
-    mensaje_style = ParagraphStyle('m', fontSize=10, textColor=colors.HexColor('#333333'),
-        leading=16, spaceAfter=10, spaceBefore=8,
-        backColor=colors.HexColor('#f8f9fa'), borderPadding=8)
-    score_style = ParagraphStyle('sc', fontSize=10, fontName='Helvetica-Bold',
-        textColor=colors.HexColor('#c0392b'), spaceAfter=2)
+    mensaje_style = ParagraphStyle('m', fontSize=10, textColor=colors.HexColor('#333333'), leading=16, spaceAfter=10, spaceBefore=8, backColor=colors.HexColor('#f8f9fa'), borderPadding=8)
+    score_style = ParagraphStyle('sc', fontSize=10, fontName='Helvetica-Bold', textColor=colors.HexColor('#c0392b'), spaceAfter=2)
     story = []
     story.append(Paragraph("Prospector — La Guia de Sevilla", titulo))
-    story.append(Paragraph(
-        f"Informe · Estado: {estado.capitalize()} · Total: {len(empresas)}",
-        subtitulo))
+    story.append(Paragraph(f"Informe · Estado: {estado.capitalize()} · Total: {len(empresas)}", subtitulo))
     story.append(HRFlowable(width="100%", thickness=2, color=colors.HexColor('#1a1a2e')))
     for e in empresas:
         story.append(Paragraph(limpiar_emojis(e['nombre']), empresa_nombre))
@@ -351,8 +245,7 @@ def exportar_pdf():
         story.append(Paragraph(f"Score: {e['score']}/100", score_style))
         if e.get('mensaje_generado'):
             story.append(Paragraph(limpiar_emojis(e['mensaje_generado']), mensaje_style))
-        story.append(HRFlowable(width="100%", thickness=0.5,
-            color=colors.HexColor('#dee2e6'), spaceBefore=6))
+        story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#dee2e6'), spaceBefore=6))
     doc.build(story)
     buffer.seek(0)
     response = make_response(buffer.read())
@@ -452,19 +345,14 @@ def accion_pipeline():
         from auditor import auditar_todas
         from scorer import puntuar_todas
         from messenger import generar_mensajes_todos
-
         tareas_estado["pipeline"]["mensaje"] = f"1/4 — Buscando {sector} en {zona}..."
         buscar_empresas(sector, zona, max_resultados=max_res)
-
         tareas_estado["pipeline"]["mensaje"] = "2/4 — Auditando webs y presencia digital..."
         auditar_todas()
-
         tareas_estado["pipeline"]["mensaje"] = "3/4 — Calculando scores..."
         puntuar_todas()
-
         tareas_estado["pipeline"]["mensaje"] = "4/4 — Generando mensajes con IA..."
         generar_mensajes_todos(min_score=20)
-
     ejecutar_en_hilo("pipeline", tarea)
     return jsonify({"ok": True, "msg": f"Pipeline iniciado: {sector} en {zona}"})
 
@@ -475,80 +363,170 @@ def accion_estado():
 
 
 # ─────────────────────────────────────────────
-# SCHEDULER AUTOMÁTICO — Pipeline horario
+# SCHEDULER AUTOMÁTICO
 #
-# Ejecuta pipeline(general, Sevilla Provincia, 60)
-# cada hora dentro del horario comercial (9:00-20:00).
-# No ejecuta si ya hay un pipeline en curso.
-# Se lanza en un thread daemon al arrancar el servidor.
+# Ciclo completo cada hora L-V 9:00-18:00:
+#   1/5 Buscar 60 empresas (general, Sevilla Provincia)
+#   2/5 Auditar webs
+#   3/5 Puntuar scores
+#   4/5 Generar mensajes con IA
+#   5/5 Enviar las nuevas de esa hora (máx 55)
+#
+# A las 10:00 además lanza seguimiento automático
+# a prospectos sin respuesta tras 4 días.
+#
+# El switch manual pausa solo el automático.
+# Búsquedas y envíos manuales siguen funcionando siempre.
 # ─────────────────────────────────────────────
+
+def _ejecutar_seguimiento(ahora):
+    """
+    Envía plantilla 'seguimiento' a empresas enviadas hace +4 días sin respuesta.
+    Solo se ejecuta a las 10:00.
+    """
+    from database import obtener_empresas, actualizar_empresa
+    from crm_client import conversacion_tiene_respuesta
+    from phone_validator import normalizar_telefono
+    import sender as sender_module
+    import time as time_module
+    from datetime import datetime as dt
+
+    if ahora.hour != 10:
+        return
+
+    print("[Seguimiento] Iniciando revisión...", flush=True)
+    empresas = obtener_empresas(estado="enviada")
+    enviados = 0
+
+    for empresa in empresas:
+        fecha_envio_str = empresa.get("fecha_envio", "")
+        if not fecha_envio_str:
+            continue
+        try:
+            fecha_envio = dt.fromisoformat(fecha_envio_str)
+        except ValueError:
+            continue
+
+        if (ahora - fecha_envio).days < 4:
+            continue
+        if (empresa.get("intentos_contacto") or 0) >= 2:
+            continue
+
+        telefono = normalizar_telefono(empresa.get("telefono", ""))
+        if not telefono:
+            continue
+
+        if conversacion_tiene_respuesta(telefono):
+            print(f"[Seguimiento] Omitida empresa_id={empresa['id']} — ya respondió", flush=True)
+            continue
+
+        plantilla_original = sender_module.PLANTILLA_ACTIVA
+        sender_module.PLANTILLA_ACTIVA = "seguimiento"
+        resultado = sender_module.enviar_whatsapp(
+            empresa_id=empresa["id"], telefono=telefono, empresa=empresa
+        )
+        sender_module.PLANTILLA_ACTIVA = plantilla_original
+
+        if resultado["ok"]:
+            actualizar_empresa(empresa["id"], {
+                "intentos_contacto": (empresa.get("intentos_contacto") or 1) + 1,
+            })
+            enviados += 1
+            print(f"[Seguimiento] Enviado empresa_id={empresa['id']}", flush=True)
+            time_module.sleep(60)
+        else:
+            print(f"[Seguimiento] Fallo empresa_id={empresa['id']}: {resultado.get('error')}", flush=True)
+
+    print(f"[Seguimiento] Completado — {enviados} enviados", flush=True)
+
 
 def _scheduler_loop():
     import time as time_module
     from datetime import datetime
 
     HORA_INICIO = 9
-    HORA_FIN    = 18
+    HORA_FIN    = 18   # Último ciclo arranca a las 17:xx
     INTERVALO   = 3600
+    MAX_ENVIOS  = 55   # Máx por ciclo — 5 min de respiro al final
 
     time_module.sleep(30)
 
     while True:
-        ahora      = datetime.now()
-        # HORARIOS
-        #  lunes(0) a viernes(4)
-        en_horario = (
-            ahora.weekday() <= 4
-            and HORA_INICIO <= ahora.hour < HORA_FIN
-        )
-        pipeline_activo = (
-            tareas_estado.get("pipeline", {}).get("estado") == "ejecutando"
-        )
+        ahora = datetime.now()
+        en_horario = (ahora.weekday() <= 4 and HORA_INICIO <= ahora.hour < HORA_FIN)
+        pipeline_activo = (tareas_estado.get("pipeline", {}).get("estado") == "ejecutando")
 
         if scheduler_pausado:
-            print(f"[Scheduler] Pausado manualmente — esperando", flush=True)
+            print(f"[Scheduler] Pausado manualmente — {ahora.strftime('%H:%M')}", flush=True)
+
         elif en_horario and not pipeline_activo:
-            print(f"[Scheduler] Lanzando pipeline automático — {ahora.strftime('%H:%M:%S')}", flush=True)
+            print(f"[Scheduler] Iniciando ciclo — {ahora.strftime('%H:%M:%S')}", flush=True)
             try:
                 from searcher import buscar_empresas
                 from auditor import auditar_todas
                 from scorer import puntuar_todas
                 from messenger import generar_mensajes_todos
+                from database import obtener_empresas
 
-                tareas_estado["pipeline"] = {
-                    "estado": "ejecutando",
-                    "mensaje": "1/4 — [AUTO] Buscando general en Sevilla Provincia...",
-                }
+                # 1/5 BUSCAR
+                tareas_estado["pipeline"] = {"estado": "ejecutando", "mensaje": "1/5 — [AUTO] Buscando general en Sevilla Provincia..."}
+                print("[Scheduler] 1/5 Buscando...", flush=True)
                 buscar_empresas("general", "Sevilla Provincia", max_resultados=60)
-                tareas_estado["pipeline"]["mensaje"] = "2/4 — [AUTO] Auditando webs..."
+
+                # 2/5 AUDITAR
+                tareas_estado["pipeline"]["mensaje"] = "2/5 — [AUTO] Auditando webs..."
+                print("[Scheduler] 2/5 Auditando...", flush=True)
                 auditar_todas()
-                tareas_estado["pipeline"]["mensaje"] = "3/4 — [AUTO] Calculando scores..."
+
+                # 3/5 PUNTUAR
+                tareas_estado["pipeline"]["mensaje"] = "3/5 — [AUTO] Calculando scores..."
+                print("[Scheduler] 3/5 Puntuando...", flush=True)
                 puntuar_todas()
-                tareas_estado["pipeline"]["mensaje"] = "4/4 — [AUTO] Generando mensajes..."
+
+                # 4/5 GENERAR
+                tareas_estado["pipeline"]["mensaje"] = "4/5 — [AUTO] Generando mensajes..."
+                print("[Scheduler] 4/5 Generando mensajes...", flush=True)
                 generar_mensajes_todos(min_score=20)
+
+                # 5/5 ENVIAR — solo las nuevas de este ciclo
+                tareas_estado["pipeline"]["mensaje"] = "5/5 — [AUTO] Enviando mensajes..."
+                print("[Scheduler] 5/5 Enviando...", flush=True)
+                todas_listas = obtener_empresas(estado="lista")
+                nuevas = [
+                    e for e in todas_listas
+                    if not e.get("fecha_envio") and e.get("mensaje_generado")
+                ][:MAX_ENVIOS]
+                resumen = enviar_lote(nuevas) if nuevas else {"enviados": 0, "fallidos": 0, "omitidos": 0}
 
                 tareas_estado["pipeline"] = {
                     "estado": "completado",
-                    "mensaje": f"[AUTO] Completado a las {datetime.now().strftime('%H:%M')}",
+                    "mensaje": (
+                        f"[AUTO] Completado a las {datetime.now().strftime('%H:%M')} — "
+                        f"enviados: {resumen.get('enviados', 0)}, "
+                        f"fallidos: {resumen.get('fallidos', 0)}"
+                    ),
                 }
-                print(f"[Scheduler] Pipeline completado — {datetime.now().strftime('%H:%M:%S')}", flush=True)
+                print(f"[Scheduler] Ciclo OK — enviados={resumen.get('enviados',0)} fallidos={resumen.get('fallidos',0)}", flush=True)
+
+                # SEGUIMIENTO (solo a las 10h)
+                try:
+                    _ejecutar_seguimiento(datetime.now())
+                except Exception as e_seg:
+                    print(f"[Seguimiento] Error: {e_seg}", flush=True)
 
             except Exception as e:
-                tareas_estado["pipeline"] = {
-                    "estado": "error",
-                    "mensaje": f"[AUTO] Error: {str(e)[:200]}",
-                }
-                print(f"[Scheduler] Error: {e}", flush=True)
+                tareas_estado["pipeline"] = {"estado": "error", "mensaje": f"[AUTO] Error: {str(e)[:200]}"}
+                print(f"[Scheduler] Error en ciclo: {e}", flush=True)
+
         else:
             if not en_horario:
                 print(f"[Scheduler] Fuera de horario ({ahora.strftime('%H:%M')}) — esperando", flush=True)
             elif pipeline_activo:
-                print(f"[Scheduler] Pipeline en curso — saltando", flush=True)
+                print("[Scheduler] Pipeline en curso — saltando", flush=True)
 
         time_module.sleep(INTERVALO)
 
 
-# Flag para que con gunicorn (varios workers) solo arranque un scheduler
 _scheduler_iniciado = False
 _scheduler_lock = threading.Lock()
 
@@ -563,14 +541,13 @@ def _iniciar_scheduler_una_vez():
             print("[Scheduler] Scheduler automático iniciado", flush=True)
 
 
-# Hook de Flask: arranca el scheduler en la primera petición
 @app.before_request
 def _lanzar_scheduler():
     _iniciar_scheduler_una_vez()
 
 
 # ─────────────────────────────────────────────
-# ARRANQUE
+# SCHEDULER — CONTROL
 # ─────────────────────────────────────────────
 
 @app.route("/accion/scheduler-toggle", methods=["POST"])
@@ -578,12 +555,18 @@ def accion_scheduler_toggle():
     global scheduler_pausado
     scheduler_pausado = not scheduler_pausado
     estado = "pausado" if scheduler_pausado else "activo"
-    print(f"[Scheduler] Toggle manual → {estado}", flush=True)
+    print(f"[Scheduler] Toggle → {estado}", flush=True)
     return jsonify({"ok": True, "scheduler_pausado": scheduler_pausado})
+
 
 @app.route("/accion/scheduler-estado")
 def accion_scheduler_estado():
     return jsonify({"scheduler_pausado": scheduler_pausado})
+
+
+# ─────────────────────────────────────────────
+# ARRANQUE
+# ─────────────────────────────────────────────
 
 if __name__ == "__main__":
     import os
