@@ -247,12 +247,13 @@
                 <i class="bi bi-clock-history text-info me-2"></i>Búsqueda automática
               </h5>
               <p class="text-muted small mb-0" id="scheduler-desc">
-                🕘 Lunes a viernes · 9:00–18:00 · cada hora · General · Sevilla Provincia · 60 resultados (EMPIEZA A LAS XX:00) 
-                 No es necesario para que reabra despues de +4dias sin respuesta
+                🕘 Lunes a viernes · 9:00–18:00 · cada hora · General · Sevilla Provincia · 60 resultados
+                — próximo ciclo: <span id="proximo-ciclo">calculando...</span>
               </p>
               <p class="text-muted small mb-0 mt-1">
                 <i class="bi bi-info-circle me-1"></i>
                 Pausar esto no afecta a las búsquedas y envíos manuales — solo detiene el piloto automático.
+                El seguimiento a prospectos sin respuesta (+4 días) se ejecuta a las 10:00 automáticamente.
               </p>
             </div>
             <button
@@ -730,6 +731,73 @@
           });
       });
 
+
+      function actualizarProximoCiclo() {
+        const ahora = new Date();
+        const hora = ahora.getHours();
+        const minutos = ahora.getMinutes();
+        const diaSemana = ahora.getDay(); // 0=dom, 6=sab
+
+        const esFinDeSemana = diaSemana === 0 || diaSemana === 6;
+        const enHorario = hora >= 9 && hora < 18;
+        const span = document.getElementById("proximo-ciclo");
+        if (!span) return;
+
+        if (esFinDeSemana) {
+          // Calcular cuántos días para el lunes
+          const diasParaLunes = diaSemana === 6 ? 2 : 1;
+          span.textContent = `lunes a las 09:00`;
+          return;
+        }
+
+        if (hora < 9) {
+          span.textContent = `hoy a las 09:00`;
+          return;
+        }
+
+        if (hora >= 18) {
+          if (diaSemana === 5) {
+            span.textContent = `lunes a las 09:00`;
+          } else {
+            span.textContent = `mañana a las 09:00`;
+          }
+          return;
+        }
+
+        // Dentro del horario — próximo ciclo es a la siguiente hora en punto
+        const proximaHora = hora + 1;
+        if (proximaHora >= 18) {
+          if (diaSemana === 5) {
+            span.textContent = `lunes a las 09:00`;
+          } else {
+            span.textContent = `mañana a las 09:00`;
+          }
+        } else {
+          const minutosRestantes = 60 - minutos;
+          span.textContent = `hoy a las ${String(proximaHora).padStart(2,'0')}:00 (en ${minutosRestantes} min)`;
+        }
+      }
+
+      document.addEventListener("DOMContentLoaded", function () {
+        // Estado scheduler
+        fetch("/accion/scheduler-estado")
+          .then(r => r.json())
+          .then(data => actualizarBtnScheduler(data.scheduler_pausado));
+
+        // Próximo ciclo — actualizar cada minuto
+        actualizarProximoCiclo();
+        setInterval(actualizarProximoCiclo, 60000);
+
+        // Estado lote
+        fetch("/accion/estado-lote")
+          .then((r) => r.json())
+          .then((s) => {
+            if (s.activo) {
+              document.getElementById("lote-status").classList.remove("d-none");
+              iniciarPollingLote();
+            }
+          });
+      });
     </script>
   </body>
 </html>
