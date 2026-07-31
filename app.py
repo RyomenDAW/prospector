@@ -11,6 +11,9 @@ from reportlab.lib.units import cm
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
 from reportlab.lib.enums import TA_CENTER
 import re, json
+import os
+import tempfile
+
 
 app = Flask(__name__)
 import json as json_module
@@ -531,20 +534,29 @@ _scheduler_iniciado = False
 _scheduler_lock = threading.Lock()
 
 
+_lock_file = os.path.join(tempfile.gettempdir(), "prospector_scheduler.lock")
+
 def _iniciar_scheduler_una_vez():
     global _scheduler_iniciado
     with _scheduler_lock:
-        if not _scheduler_iniciado:
-            _scheduler_iniciado = True
-            t = threading.Thread(target=_scheduler_loop, daemon=True)
-            t.start()
-            print("[Scheduler] Scheduler automático iniciado", flush=True)
+        if _scheduler_iniciado:
+            return
+        # Evitar doble arranque con gunicorn (múltiples workers)
+        if os.path.exists(_lock_file):
+            return
+        try:
+            open(_lock_file, 'w').close()
+        except Exception:
+            pass
+        _scheduler_iniciado = True
+        t = threading.Thread(target=_scheduler_loop, daemon=True)
+        t.start()
+        print("[Scheduler] Scheduler automático iniciado", flush=True)
 
 
 @app.before_request
 def _lanzar_scheduler():
     _iniciar_scheduler_una_vez()
-
 
 # ─────────────────────────────────────────────
 # SCHEDULER — CONTROL

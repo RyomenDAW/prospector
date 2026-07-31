@@ -104,3 +104,40 @@ def crear_conversacion_crm(telefono: str, nombre: str, mensaje_texto: str, wamid
 
     log.info("Mensaje saliente registrado en CRM | conv_id=%s", conv_id)
     return True
+
+
+
+
+
+def _get(url: str) -> requests.Response | None:
+    """GET con reintento automático si el token caduca."""
+    global _access_token
+
+    if not _access_token:
+        if not _login():
+            return None
+
+    resp = requests.get(url, headers=_headers(), timeout=10)
+
+    if resp.status_code == 401:
+        log.warning("Token CRM caducado — relogin...")
+        if not _login():
+            return None
+        resp = requests.get(url, headers=_headers(), timeout=10)
+
+    return resp
+
+
+def conversacion_tiene_respuesta(telefono: str) -> bool:
+    """
+    Consulta el CRM para saber si el prospecto ha respondido.
+    Returns True si hay mensajes entrantes, False si no o si hay error.
+    """
+    url = f"{config.CRM_API_URL}/api/whatsapp/conversaciones/por-telefono/{telefono}/"
+    resp = _get(url)
+
+    if not resp or not resp.ok:
+        log.warning("[Seguimiento] No se pudo consultar CRM para %s", telefono)
+        return False
+
+    return resp.json().get("tiene_mensajes_entrantes", False)
