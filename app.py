@@ -446,7 +446,7 @@ def _scheduler_loop():
 
     HORA_INICIO = 9
     HORA_FIN    = 18   # Último ciclo arranca a las 17:xx
-    INTERVALO   = 3600
+    INTERVALO   = 9000
     MAX_ENVIOS  = 55   # Máx por ciclo — 5 min de respiro al final
 
     time_module.sleep(30)

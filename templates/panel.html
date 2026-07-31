@@ -736,17 +736,15 @@
         const ahora = new Date();
         const hora = ahora.getHours();
         const minutos = ahora.getMinutes();
-        const diaSemana = ahora.getDay(); // 0=dom, 6=sab
-
-        const esFinDeSemana = diaSemana === 0 || diaSemana === 6;
-        const enHorario = hora >= 9 && hora < 18;
+        const diaSemana = ahora.getDay();
         const span = document.getElementById("proximo-ciclo");
         if (!span) return;
 
-        if (esFinDeSemana) {
-          // Calcular cuántos días para el lunes
-          const diasParaLunes = diaSemana === 6 ? 2 : 1;
-          span.textContent = `lunes a las 09:00`;
+        const esFinDeSemana = diaSemana === 0 || diaSemana === 6;
+
+        if (esFinDeSemana || hora >= 18) {
+          const diasParaLunes = diaSemana === 6 ? 2 : diaSemana === 0 ? 1 : 0;
+          span.textContent = diasParaLunes > 0 ? `lunes a las 09:00` : `mañana a las 09:00`;
           return;
         }
 
@@ -755,26 +753,18 @@
           return;
         }
 
-        if (hora >= 18) {
-          if (diaSemana === 5) {
-            span.textContent = `lunes a las 09:00`;
-          } else {
-            span.textContent = `mañana a las 09:00`;
-          }
-          return;
-        }
+        // Ciclos a las 9:00, 11:30, 14:00, 16:30
+        const ciclos = [9*60, 11*60+30, 14*60, 16*60+30];
+        const ahoraMin = hora * 60 + minutos;
+        const siguiente = ciclos.find(c => c > ahoraMin);
 
-        // Dentro del horario — próximo ciclo es a la siguiente hora en punto
-        const proximaHora = hora + 1;
-        if (proximaHora >= 18) {
-          if (diaSemana === 5) {
-            span.textContent = `lunes a las 09:00`;
-          } else {
-            span.textContent = `mañana a las 09:00`;
-          }
+        if (siguiente) {
+          const h = Math.floor(siguiente / 60);
+          const m = siguiente % 60;
+          const restantes = siguiente - ahoraMin;
+          span.textContent = `hoy a las ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')} (en ${restantes} min)`;
         } else {
-          const minutosRestantes = 60 - minutos;
-          span.textContent = `hoy a las ${String(proximaHora).padStart(2,'0')}:00 (en ${minutosRestantes} min)`;
+          span.textContent = `mañana a las 09:00`;
         }
       }
 
