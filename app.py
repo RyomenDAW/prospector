@@ -553,11 +553,6 @@ def _iniciar_scheduler_una_vez():
         t.start()
         print("[Scheduler] Scheduler automático iniciado", flush=True)
 
-
-@app.before_request
-def _lanzar_scheduler():
-    _iniciar_scheduler_una_vez()
-
 # ─────────────────────────────────────────────
 # SCHEDULER — CONTROL
 # ─────────────────────────────────────────────
