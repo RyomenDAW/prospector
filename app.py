@@ -32,6 +32,10 @@ estado_lote = {
     "mensaje": "",
 }
 
+
+TERRITORIO_SCHEDULER = "andalucia"
+_zona_index = 0
+
 scheduler_pausado = False
 
 def ejecutar_en_hilo(nombre, funcion):
@@ -443,55 +447,72 @@ def _ejecutar_seguimiento(ahora):
     print(f"[Seguimiento] Completado — {enviados} enviados", flush=True)
 
 
+
 def _scheduler_loop():
     import time as time_module
     from datetime import datetime
-
+    from searcher import TERRITORIO_SEVILLA, TERRITORIO_ANDALUCIA, TERRITORIO_ESPANA
+ 
+    global _zona_index
+ 
     HORA_INICIO = 9
-    HORA_FIN    = 18   # Último ciclo arranca a las 17:xx
+    HORA_FIN    = 18
     INTERVALO   = 9000
-    MAX_ENVIOS  = 55   # Máx por ciclo — 5 min de respiro al final
-
+    MAX_ENVIOS  = 55
+ 
+    TERRITORIOS = {
+        "sevilla":   TERRITORIO_SEVILLA,
+        "andalucia": TERRITORIO_ANDALUCIA,
+        "espana":    TERRITORIO_ESPANA,
+    }
+ 
     time_module.sleep(30)
-
+ 
     while True:
         ahora = datetime.now()
         en_horario = (ahora.weekday() <= 4 and HORA_INICIO <= ahora.hour < HORA_FIN)
         pipeline_activo = (tareas_estado.get("pipeline", {}).get("estado") == "ejecutando")
-
+ 
         if scheduler_pausado:
-            print(f"[Scheduler] Pausado manualmente — {ahora.strftime('%H:%M')}", flush=True)
-
+            print(f"[Scheduler] Pausado — {ahora.strftime('%H:%M')}", flush=True)
+ 
         elif en_horario and not pipeline_activo:
-            print(f"[Scheduler] Iniciando ciclo — {ahora.strftime('%H:%M:%S')}", flush=True)
+ 
+            territorio_actual = TERRITORIOS.get(TERRITORIO_SCHEDULER, TERRITORIO_ANDALUCIA)
+            zonas_lista = list(territorio_actual.keys())
+            zona_ciclo = zonas_lista[_zona_index % len(zonas_lista)]
+            _zona_index += 1
+ 
+            print(f"[Scheduler] Ciclo {ahora.strftime('%H:%M:%S')} | territorio={TERRITORIO_SCHEDULER} | zona={zona_ciclo}", flush=True)
+ 
             try:
                 from searcher import buscar_empresas
                 from auditor import auditar_todas
                 from scorer import puntuar_todas
                 from messenger import generar_mensajes_todos
                 from database import obtener_empresas
-
+ 
                 # 1/5 BUSCAR
-                tareas_estado["pipeline"] = {"estado": "ejecutando", "mensaje": "1/5 — [AUTO] Buscando general en Sevilla Provincia..."}
-                print("[Scheduler] 1/5 Buscando...", flush=True)
-                buscar_empresas("general", "Sevilla Provincia", max_resultados=60)
-
+                tareas_estado["pipeline"] = {"estado": "ejecutando", "mensaje": f"1/5 — [AUTO] Buscando en {zona_ciclo}..."}
+                print(f"[Scheduler] 1/5 Buscando en {zona_ciclo}...", flush=True)
+                buscar_empresas("general", zona_ciclo, max_resultados=60)
+ 
                 # 2/5 AUDITAR
                 tareas_estado["pipeline"]["mensaje"] = "2/5 — [AUTO] Auditando webs..."
                 print("[Scheduler] 2/5 Auditando...", flush=True)
                 auditar_todas()
-
+ 
                 # 3/5 PUNTUAR
                 tareas_estado["pipeline"]["mensaje"] = "3/5 — [AUTO] Calculando scores..."
                 print("[Scheduler] 3/5 Puntuando...", flush=True)
                 puntuar_todas()
-
+ 
                 # 4/5 GENERAR
                 tareas_estado["pipeline"]["mensaje"] = "4/5 — [AUTO] Generando mensajes..."
                 print("[Scheduler] 4/5 Generando mensajes...", flush=True)
                 generar_mensajes_todos(min_score=20)
-
-                # 5/5 ENVIAR — solo las nuevas de este ciclo
+ 
+                # 5/5 ENVIAR
                 tareas_estado["pipeline"]["mensaje"] = "5/5 — [AUTO] Enviando mensajes..."
                 print("[Scheduler] 5/5 Enviando...", flush=True)
                 todas_listas = obtener_empresas(estado="lista")
@@ -500,46 +521,43 @@ def _scheduler_loop():
                     if not e.get("fecha_envio") and e.get("mensaje_generado")
                 ][:MAX_ENVIOS]
                 resumen = enviar_lote(nuevas) if nuevas else {"enviados": 0, "fallidos": 0, "omitidos": 0}
-
+ 
                 tareas_estado["pipeline"] = {
                     "estado": "completado",
                     "mensaje": (
-                        f"[AUTO] Completado a las {datetime.now().strftime('%H:%M')} — "
+                        f"[AUTO] {ahora.strftime('%H:%M')} | {zona_ciclo} | "
                         f"enviados: {resumen.get('enviados', 0)}, "
                         f"fallidos: {resumen.get('fallidos', 0)}"
                     ),
                 }
-                print(f"[Scheduler] Ciclo OK — enviados={resumen.get('enviados',0)} fallidos={resumen.get('fallidos',0)}", flush=True)
-
-                # SEGUIMIENTO (solo a las 10h)
+                print(f"[Scheduler] OK — zona={zona_ciclo} enviados={resumen.get('enviados',0)}", flush=True)
+ 
                 try:
                     _ejecutar_seguimiento(datetime.now())
                 except Exception as e_seg:
                     print(f"[Seguimiento] Error: {e_seg}", flush=True)
-
+ 
             except Exception as e:
-                tareas_estado["pipeline"] = {"estado": "error", "mensaje": f"[AUTO] Error: {str(e)[:200]}"}
-                print(f"[Scheduler] Error en ciclo: {e}", flush=True)
-
+                tareas_estado["pipeline"] = {"estado": "error", "mensaje": f"[AUTO] Error en {zona_ciclo}: {str(e)[:200]}"}
+                print(f"[Scheduler] Error ({zona_ciclo}): {e}", flush=True)
+ 
         else:
             if not en_horario:
-                print(f"[Scheduler] Fuera de horario ({ahora.strftime('%H:%M')}) — esperando", flush=True)
+                print(f"[Scheduler] Fuera de horario ({ahora.strftime('%H:%M')})", flush=True)
             elif pipeline_activo:
                 print("[Scheduler] Pipeline en curso — saltando", flush=True)
-
+ 
         time_module.sleep(INTERVALO)
-
-
+ 
+ 
 _scheduler_iniciado = False
 _scheduler_lock = threading.Lock()
-
-
+ 
 _lock_file = os.path.join(tempfile.gettempdir(), "prospector_scheduler.lock")
-
+ 
 @app.before_request
 def _lanzar_scheduler():
     _iniciar_scheduler_una_vez()
-
 
 def _iniciar_scheduler_una_vez():
     global _scheduler_iniciado
@@ -573,7 +591,39 @@ def accion_scheduler_toggle():
 
 @app.route("/accion/scheduler-estado")
 def accion_scheduler_estado():
-    return jsonify({"scheduler_pausado": scheduler_pausado})
+    return jsonify({
+        "scheduler_pausado": scheduler_pausado,
+        "territorio": TERRITORIO_SCHEDULER,
+        "zona_actual": _zona_actual(),
+    })
+
+# ── Añadir estas dos rutas junto a las otras de /accion/scheduler-* ──────────
+
+@app.route("/accion/scheduler-territorio", methods=["POST"])
+def accion_scheduler_territorio():
+    """Cambia el territorio del scheduler desde el panel."""
+    global TERRITORIO_SCHEDULER, _zona_index
+    nuevo = request.json.get("territorio", "andalucia")
+    if nuevo not in ("sevilla", "andalucia", "espana"):
+        return jsonify({"ok": False, "msg": "Territorio inválido"}), 400
+    TERRITORIO_SCHEDULER = nuevo
+    _zona_index = 0  # Resetea el índice para empezar desde el principio del nuevo territorio
+    print(f"[Scheduler] Territorio cambiado a: {nuevo}", flush=True)
+    return jsonify({"ok": True, "territorio": nuevo})
+
+
+
+def _zona_actual():
+    """Devuelve el nombre de la zona que se usará en el próximo ciclo."""
+    from searcher import TERRITORIO_SEVILLA, TERRITORIO_ANDALUCIA, TERRITORIO_ESPANA
+    territorios = {
+        "sevilla":   TERRITORIO_SEVILLA,
+        "andalucia": TERRITORIO_ANDALUCIA,
+        "espana":    TERRITORIO_ESPANA,
+    }
+    t = territorios.get(TERRITORIO_SCHEDULER, TERRITORIO_ANDALUCIA)
+    zonas = list(t.keys())
+    return zonas[_zona_index % len(zonas)]
 
 
 # ─────────────────────────────────────────────
