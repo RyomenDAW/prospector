@@ -299,6 +299,28 @@ ZONAS_ESPANA_EXTRA = {
     "Palma de Mallorca":            (39.5696, 2.6502, 13),
     "Ibiza":                        (38.9067, 1.4206, 14),
     "Mahon":                        (39.8886, 4.2628, 14),
+
+
+
+    # ── Búsquedas amplias por CCCAA ───────────────────────────────
+    # zoom bajo = radio grande = toda la CCAA de golpe
+    "Andalucia General":          (37.4500,  -4.8000,  8),
+    "Murcia General":             (37.9000,  -1.5000, 10),
+    "Valencia General":           (39.4800,  -0.7500,  9),
+    "Cataluna General":           (41.8000,   1.5000,  9),
+    "Madrid General":             (40.4168,  -3.7038, 11),
+    "Pais Vasco General":         (43.0000,  -2.5000, 10),
+    "Galicia General":            (42.8000,  -8.0000,  9),
+    "Castilla Leon General":      (41.6500,  -4.5000,  8),
+    "Castilla Mancha General":    (39.5000,  -3.0000,  9),
+    "Extremadura General":        (39.2000,  -6.1500,  9),
+    "Aragon General":             (41.5000,  -0.8800,  9),
+    "Asturias General":           (43.3600,  -5.8500, 10),
+    "Cantabria General":          (43.1800,  -3.9900, 11),
+    "Navarra General":            (42.6900,  -1.6500, 10),
+    "La Rioja General":           (42.3000,  -2.3500, 11),
+    "Canarias General":           (28.2916, -15.5000,  9),
+    "Baleares General":           (39.6000,   3.0000, 10),
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
