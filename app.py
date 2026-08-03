@@ -536,6 +536,11 @@ _scheduler_lock = threading.Lock()
 
 _lock_file = os.path.join(tempfile.gettempdir(), "prospector_scheduler.lock")
 
+@app.before_request
+def _lanzar_scheduler():
+    _iniciar_scheduler_una_vez()
+
+
 def _iniciar_scheduler_una_vez():
     global _scheduler_iniciado
     with _scheduler_lock:
