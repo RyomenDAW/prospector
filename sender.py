@@ -334,13 +334,16 @@ def enviar_lote(empresas: list) -> dict:
 # ─────────────────────────────────────────────
 # CONTEXTO NOVA → CRM
 # ─────────────────────────────────────────────
-
 def _enviar_contexto_nova(telefono: str, empresa: dict) -> None:
     """
     Envía la ficha de empresa al CRM para poblar nova_contexto
     y activar Nova automáticamente en esa conversación.
+
+    Incluye datos de auditoría concretos para que Nova pueda
+    personalizar la fase de calentar con información real.
     """
     import os
+    import json as _json
 
     crm_url = os.environ.get("CRM_URL", "").rstrip("/")
     secret  = os.environ.get("PROSPECTOR_SECRET", "")
@@ -349,20 +352,70 @@ def _enviar_contexto_nova(telefono: str, empresa: dict) -> None:
         log.warning("[Nova] CRM_URL o PROSPECTOR_SECRET no configurados — contexto no enviado")
         return
 
+    # ── Extraer debilidades limpias ───────────────────────────────────────────
+    # scorer.py guarda "debilidades" como JSON array de strings: ["Sin SSL", ...]
+    # dafo_generator.py guarda "dafo" como JSON array de objetos: [{"item":..., "gravedad":...}]
+    # Intentamos ambas fuentes, priorizando "debilidades" (más limpia).
     debilidades = []
-    dafo_raw = empresa.get("dafo") or empresa.get("debilidades") or ""
-    if isinstance(dafo_raw, str) and dafo_raw:
-        debilidades = [d.strip() for d in dafo_raw.split(",") if d.strip()]
-    elif isinstance(dafo_raw, list):
-        debilidades = dafo_raw
+
+    raw_debilidades = empresa.get("debilidades")
+    raw_dafo = empresa.get("dafo")
+
+    if raw_debilidades:
+        if isinstance(raw_debilidades, list):
+            debilidades = [str(d) for d in raw_debilidades if d]
+        elif isinstance(raw_debilidades, str):
+            try:
+                parsed = _json.loads(raw_debilidades)
+                if isinstance(parsed, list):
+                    debilidades = [str(d) for d in parsed if d]
+            except (_json.JSONDecodeError, ValueError):
+                # Fallback: texto plano separado por comas
+                debilidades = [d.strip() for d in raw_debilidades.split(",") if d.strip()]
+
+    # Si no hay debilidades del scorer, usar el dafo
+    if not debilidades and raw_dafo:
+        try:
+            parsed_dafo = _json.loads(raw_dafo) if isinstance(raw_dafo, str) else raw_dafo
+            if isinstance(parsed_dafo, list):
+                for item in parsed_dafo:
+                    if isinstance(item, dict):
+                        texto = item.get("item", "")
+                        gravedad = item.get("gravedad", "")
+                        if texto and gravedad != "ok":
+                            debilidades.append(texto)
+                    elif isinstance(item, str):
+                        debilidades.append(item)
+        except (_json.JSONDecodeError, ValueError):
+            pass
+
+    # ── Construir contexto enriquecido ────────────────────────────────────────
+    velocidad = empresa.get("velocidad_movil")
+    resenas   = empresa.get("num_resenas") or 0
+    valoracion = empresa.get("valoracion") or 0
 
     contexto = {
+        # Datos básicos
         "nombre_empresa": empresa.get("nombre", ""),
         "sector":         empresa.get("sector", ""),
         "zona":           empresa.get("zona", ""),
         "score":          empresa.get("score", 0),
         "debilidades":    debilidades,
+
+        # Datos de auditoría concretos — Nova los usa en fase "calentar"
+        "tiene_web":      bool(empresa.get("tiene_web")),
+        "tiene_ssl":      bool(empresa.get("tiene_ssl")),
+        "velocidad_movil": velocidad,          # 0-100 o None si no se pudo auditar
+        "num_resenas":    resenas,
+        "valoracion":     valoracion,
+        "web_url":        empresa.get("web", ""),
+        "direccion":      empresa.get("direccion", ""),
     }
+
+    log.info(
+        "[Nova] Contexto preparado — telefono=%s, score=%s, debilidades=%s",
+        telefono, contexto["score"], debilidades,
+    )
 
     try:
         resp = requests.post(
@@ -376,8 +429,8 @@ def _enviar_contexto_nova(telefono: str, empresa: dict) -> None:
         )
         if resp.status_code == 200:
             log.info(
-                "[Nova] Contexto enviado al CRM — telefono=%s, score=%s",
-                telefono, contexto["score"],
+                "[Nova] Contexto enviado al CRM — telefono=%s, score=%s, debilidades=%d items",
+                telefono, contexto["score"], len(debilidades),
             )
         else:
             log.warning(
