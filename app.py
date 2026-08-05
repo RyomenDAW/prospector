@@ -466,7 +466,7 @@ def _scheduler_loop():
         "espana":    TERRITORIO_ESPANA,
     }
  
-    time_module.sleep(30)
+    time_module.sleep(30) #30
  
     while True:
         ahora = datetime.now()

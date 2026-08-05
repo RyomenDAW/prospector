@@ -438,4 +438,4 @@ def _enviar_contexto_nova(telefono: str, empresa: dict) -> None:
                 resp.status_code, resp.text[:200],
             )
     except requests.RequestException as exc:
-        log.warning("[Nova] Error enviando contexto al CRM: %s", exc)
+        log.warning("[Nova] Error enviando contexto al CRM: %s", exc) #FINAL
