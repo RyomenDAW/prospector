@@ -457,7 +457,7 @@ def _scheduler_loop():
  
     HORA_INICIO = 9
     HORA_FIN    = 18
-    INTERVALO   = 9000
+    INTERVALO   = 18000
     MAX_ENVIOS  = 55
  
     TERRITORIOS = {
