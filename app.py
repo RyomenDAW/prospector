@@ -387,10 +387,6 @@ def accion_estado():
 # ─────────────────────────────────────────────
 
 def _ejecutar_seguimiento(ahora):
-    """
-    Envía plantilla 'seguimiento' a empresas enviadas hace +4 días sin respuesta.
-    Solo se ejecuta a las 10:00.
-    """
     from database import obtener_empresas, actualizar_empresa
     from crm_client import conversacion_tiene_respuesta
     from phone_validator import normalizar_telefono
@@ -401,22 +397,22 @@ def _ejecutar_seguimiento(ahora):
     if ahora.hour != 10:
         return
 
-    print("[Seguimiento] Iniciando revisión...", flush=True)
+    print("[Seguimiento] Iniciando...", flush=True)
     empresas = obtener_empresas(estado="enviada")
-    enviados = 0
+    enviados_72h = 0
+    enviados_7d  = 0
 
     for empresa in empresas:
-        fecha_envio_str = empresa.get("fecha_envio", "")
-        if not fecha_envio_str:
+        fecha_str = empresa.get("fecha_envio", "")
+        if not fecha_str:
             continue
         try:
-            fecha_envio = dt.fromisoformat(fecha_envio_str)
+            fecha_envio = dt.fromisoformat(fecha_str)
         except ValueError:
             continue
 
-        if (ahora - fecha_envio).days < 4:
-            continue
-        if (empresa.get("intentos_contacto") or 0) >= 2:
+        intentos = empresa.get("intentos_contacto") or 0
+        if intentos >= 2:
             continue
 
         telefono = normalizar_telefono(empresa.get("telefono", ""))
@@ -424,28 +420,39 @@ def _ejecutar_seguimiento(ahora):
             continue
 
         if conversacion_tiene_respuesta(telefono):
-            print(f"[Seguimiento] Omitida empresa_id={empresa['id']} — ya respondió", flush=True)
+            print(f"[Seguimiento] Omitida id={empresa['id']} — ya respondió", flush=True)
+            continue
+
+        dias = (ahora - fecha_envio).days
+
+        if intentos == 0 and 3 <= dias <= 5:
+            plantilla = "seguimiento_72h"
+        elif intentos == 1 and 6 <= dias <= 9:
+            plantilla = "seguimiento"
+        else:
             continue
 
         plantilla_original = sender_module.PLANTILLA_ACTIVA
-        sender_module.PLANTILLA_ACTIVA = "seguimiento"
+        sender_module.PLANTILLA_ACTIVA = plantilla
         resultado = sender_module.enviar_whatsapp(
-            empresa_id=empresa["id"], telefono=telefono, empresa=empresa
+            empresa_id=empresa["id"],
+            telefono=telefono,
+            empresa=empresa,
         )
         sender_module.PLANTILLA_ACTIVA = plantilla_original
 
         if resultado["ok"]:
-            actualizar_empresa(empresa["id"], {
-                "intentos_contacto": (empresa.get("intentos_contacto") or 1) + 1,
-            })
-            enviados += 1
-            print(f"[Seguimiento] Enviado empresa_id={empresa['id']}", flush=True)
+            actualizar_empresa(empresa["id"], {"intentos_contacto": intentos + 1})
+            if plantilla == "seguimiento_72h":
+                enviados_72h += 1
+            else:
+                enviados_7d += 1
+            print(f"[Seguimiento] {plantilla} enviado id={empresa['id']}", flush=True)
             time_module.sleep(60)
         else:
-            print(f"[Seguimiento] Fallo empresa_id={empresa['id']}: {resultado.get('error')}", flush=True)
+            print(f"[Seguimiento] Fallo id={empresa['id']}: {resultado.get('error')}", flush=True)
 
-    print(f"[Seguimiento] Completado — {enviados} enviados", flush=True)
-
+    print(f"[Seguimiento] OK — 72h: {enviados_72h}, 7días: {enviados_7d}", flush=True)
 
 
 def _scheduler_loop():

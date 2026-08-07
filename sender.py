@@ -86,6 +86,15 @@ PLANTILLAS = {
             "¿Te viene bien esta semana o la próxima para que te la cuente "
             "en 10 minutos?"
         ),
+    "seguimiento_72h": {
+        "idioma": "es",
+        "vars": ["nombre"],
+        "texto": (
+            "Hola {nombre}, sé que el día a día no deja mucho tiempo. "
+            "Si en algún momento quieres que revisemos juntos cómo está vuestra "
+            "presencia digital, aquí estamos. Sin compromiso."
+    ),
+        },
     },
 }
 
